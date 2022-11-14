@@ -1,9 +1,27 @@
 ### general settings
 product_version: "6.0.1"
+ansible_become: yes
+ansible_user: "{{ lookup('env', 'USER') }}"
+ansible_become_method: sudo
 
 ansible_python_interpreter: /usr/bin/python3
 ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 product_name: fworch
+
+### host information
+#ui_server: "{{ groups['frontends'].0 }}" #todo: this could be more then one
+#middleware_server: "{{ groups['middlewareserver'].0 }}"
+log_server: "{{ groups['logserver'].0 }}"
+#databaseserver_server: "{{ groups['databaseserver'].0 }}"
+#importer_server: "{{ groups['importers'].0 }}" #todo: this could be more then one
+#api_server: "{{ groups['apiserver'].0 }}"
+
+#ui_hostname: "{{ hostvars[ui_server]['ansible_facts']['fqdn'] }}"
+#middleware_hostname: "{{ hostvars[middleware_server]['ansible_facts']['fqdn'] }}"
+syslog_host: "{{ hostvars[log_server]['ansible_facts']['fqdn'] }}"
+#fworch_db_host: "{{ hostvars[databaseserver_server]['ansible_facts']['fqdn'] }}"
+#importer_hostname: "{{ hostvars[importer_server]['ansible_facts']['fqdn'] }}"
+#api_hostname: "{{ hostvars[api_server]['ansible_facts']['fqdn'] }}"
 
 # installation_mode options:
 #   new (default) - assumes that no fworch is installed on the target devices - fails if it finds an installation
@@ -104,7 +122,6 @@ randomly_generated_pwd: "{{ lookup('password', '/dev/null length=32 chars=ascii_
 
 ### logging
 syslog_proto: tcp
-syslog_host: localhost
 syslog_port: 514
 middleware_server_syslog_id: "{{ product_name }}.middleware-server"
 ui_syslog_id: "{{ product_name }}-ui"
