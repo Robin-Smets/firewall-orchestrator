@@ -22,9 +22,11 @@ class Uid2IdMapper:
         self.nwobj_uid2id = {}
         self.svc_uid2id = {}
         self.user_uid2id = {}
+        self.rule_uid2id = {}
         self.outdated_nwobj_uid2id = {}
         self.outdated_svc_uid2id = {}
         self.outdated_user_uid2id = {}
+        self.outdated_rule_uid2id = {}
 
     def log_error(self, message: str):
         """
@@ -45,6 +47,54 @@ class Uid2IdMapper:
             message (str): The debug message to log.
         """
         self.logger.debug(message)
+
+    def outdated_nwobj_id_exists(self, uid: str) -> bool:
+        """
+        Check if an outdated network object ID exists for a given UID.
+        
+        Args:
+            uid (str): The UID of the network object.
+        
+        Returns:
+            bool: True if the outdated ID exists, False otherwise.
+        """
+        return uid in self.outdated_nwobj_uid2id
+
+    def outdated_svc_id_exists(self, uid: str) -> bool:
+        """
+        Check if an outdated service object ID exists for a given UID.
+        
+        Args:
+            uid (str): The UID of the service object.
+        
+        Returns:
+            bool: True if the outdated ID exists, False otherwise.
+        """
+        return uid in self.outdated_svc_uid2id
+
+    def outdated_user_id_exists(self, uid: str) -> bool:
+        """
+        Check if an outdated user ID exists for a given UID.
+        
+        Args:
+            uid (str): The UID of the user.
+        
+        Returns:
+            bool: True if the outdated ID exists, False otherwise.
+        """
+        return uid in self.outdated_user_uid2id
+    
+    def outdated_rule_id_exists(self, uid: str) -> bool:
+        """
+        Check if an outdated rule ID exists for a given UID.
+        
+        Args:
+            uid (str): The UID of the rule.
+        
+        Returns:
+            bool: True if the outdated ID exists, False otherwise.
+        """
+        return uid in self.outdated_rule_uid2id
 
     def get_network_object_id(self, uid: str, before_update: bool = False) -> int:
         """
@@ -106,6 +156,26 @@ class Uid2IdMapper:
             self.log_error(f"User UID '{uid}' not found in mapping.")
         return id
     
+    def get_rule_id(self, uid: str, before_update: bool = False) -> int:
+        """
+        Get the ID for a given rule UID.
+        
+        Args:
+            uid (str): The UID of the rule.
+            before_update (bool): If True, use the outdated mapping if available.
+        
+        Returns:
+            int: The ID of the rule.
+        """
+        if before_update:
+            id = self.outdated_rule_uid2id.get(uid)
+            if id is not None:
+                return id
+        id = self.rule_uid2id.get(uid)
+        if id is None:
+            self.log_error(f"Rule UID '{uid}' not found in mapping.")
+        return id
+    
     def add_network_object_mappings(self, mappings: List[dict]) -> bool:
         """
         Add network object mappings to the internal mapping dictionary.
@@ -161,6 +231,25 @@ class Uid2IdMapper:
                 return False
             self.user_uid2id[mapping['user_uid']] = mapping['user_id']
         self.log_debug(f"Added {len(mappings)} user mappings.")
+        return True
+
+    def add_rule_mappings(self, mappings: List[dict]) -> bool:
+        """
+        Add rule mappings to the internal mapping dictionary.
+
+        Args:
+            mappings (List[dict]): A list of dictionaries containing UID and ID mappings.
+                    Each dictionary should have 'rule_uid' and 'rule_id' keys.
+
+        Returns:
+            bool: True if the mappings were added successfully, False otherwise.
+        """
+        for mapping in mappings:
+            if 'rule_uid' not in mapping or 'rule_id' not in mapping:
+                self.log_error("Invalid mapping format. Each mapping must contain 'rule_uid' and 'rule_id'.")
+                return False
+            self.rule_uid2id[mapping['rule_uid']] = mapping['rule_id']
+        self.log_debug(f"Added {len(mappings)} rule mappings.")
         return True
     
     def update_network_object_mapping(self, uids: Optional[List[str]] = None) -> bool:
@@ -290,4 +379,47 @@ class Uid2IdMapper:
             return True
         except Exception as e:
             self.log_error(f"Error updating user mapping: {e}")
+            return False
+        
+    def update_rule_mapping(self, uids: Optional[List[str]] = None) -> bool:
+        """
+        Update the mapping for rules based on the provided UIDs.
+        
+        Args:
+            uids (List[str]): A list of UIDs to update the mapping for. If None, all UIDs for the Management will be fetched.
+        
+        Returns:
+            bool: True if the mapping was updated successfully, False otherwise.
+        """
+        # TODO: remove active filter later
+        query = """
+            query getMapOfUid2Id($uids: [String!], $mgmId: Int!) {
+                rule(where: {rule_uid: {_in: $uids}, mgm_id: {_eq: $mgmId}, removed: {_is_null: true}, active: {_eq: true}}) {
+                    rule_id
+                    rule_uid
+                }
+            }
+            """
+        if uids is not None:
+            if len(uids) == 0:
+                self.log_debug("Rule mapping updated for 0 objects")
+                return True
+            variables = {'uids': uids}
+        else:
+            # If no UIDs are provided, fetch all UIDs for the Management
+            variables = {'mgmId': self.import_state_controller.MgmDetails.Id}
+        try:
+            response = self.api_connection.call(query, variables)
+            if response is None:
+                self.log_error("Error updating rule mapping: No response from API")
+                return False
+            if 'errors' in response:
+                self.log_error(f"Error updating rule mapping: {response['errors']}")
+                return False
+            for obj in response['data']['rule']:
+                self.rule_uid2id[obj['rule_uid']] = obj['rule_id']
+            self.log_debug(f"Rule mapping updated for {len(response['data']['rule'])} objects")
+            return True
+        except Exception as e:
+            self.log_error(f"Error updating rule mapping: {e}")
             return False

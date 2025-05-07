@@ -150,6 +150,17 @@ class Rule(BaseModel):
     rule_uid: str
     rulebase_id: Optional[int] # = None
 
+    def did_change(self, other: 'Rule') -> bool:
+        """
+        Check if the rule has changed compared to another rule.
+        """
+        if not isinstance(other, Rule):
+            raise ValueError("Comparison must be with another Rule instance")
+        for field in self.__fields__:
+            if getattr(self, field) != getattr(other, field):
+                return True
+        return False
+
     # def __init__(self, rule: Rule, mgmId: int, importId: int, access_rule: bool, nat_rule: bool, rulebase_id: str):
     #     self.rule_uid = rule.rule_uid
     #     self.rule_name = rule.rule_name

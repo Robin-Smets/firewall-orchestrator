@@ -1,0 +1,20 @@
+mutation addNewRuleRefs($froms: [rule_from_insert_input!]!, $tos: [rule_to_insert_input!]!, $svcs: [rule_service_insert_input!]!, $nwobj_resolveds: [rule_nwobj_resolved_insert_input!]!, $svc_resolveds: [rule_svc_resolved_insert_input!]!, $user_resolveds: [rule_user_resolved_insert_input!]!) {
+    insert_rule_from(objects: $froms) {
+        affected_rows
+    }
+    insert_rule_to(objects: $tos) {
+        affected_rows
+    }
+    insert_rule_service(objects: $svcs) {
+        affected_rows
+    }
+    insert_rule_nwobj_resolved(objects: $nwobj_resolveds) {
+        affected_rows
+    }
+    insert_rule_svc_resolved(objects: $svc_resolveds) {
+        affected_rows
+    }
+    insert_rule_user_resolved(objects: $user_resolveds) {
+        affected_rows
+    }
+}

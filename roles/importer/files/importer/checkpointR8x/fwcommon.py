@@ -28,7 +28,7 @@ def has_config_changed (full_config, importState: ImportState, force=False):
 
     session_id = loginCp(importState.MgmDetails)
 
-    if importState.LastSuccessfulImport==None or importState.LastSuccessfulImport=='' or force:
+    if importState.LastSuccessfulImport is None or importState.LastSuccessfulImport=='' or force:
         # if no last import time found or given or if force flag is set, do full import
         result = 1
     else: # otherwise search for any changes since last import

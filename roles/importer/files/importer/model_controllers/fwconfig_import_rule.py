@@ -11,6 +11,7 @@ from model_controllers.fwconfig_normalized_controller import FwConfigNormalized
 from model_controllers.fwconfig_import_base import FwConfigImportBase
 from fwo_log import getFwoLogger
 from typing import List
+from typing import Tuple
 from datetime import datetime
 from model_controllers.fwconfig_import_object import FwConfigImportObject
 from models.rule_from import RuleFrom
@@ -73,7 +74,9 @@ class FwConfigImportRule(FwConfigImportBase):
             currentRulebase = self.NormalizedConfig.getRulebase(rulebaseId) # [pol for pol in self.NormalizedConfig.rulebases if pol.Uid == rulebaseId]
             previousRulebase = prevConfig.getRulebase(rulebaseId)
             for ruleUid in ruleUidsInBoth[rulebaseId]:
-                if self.ruleChanged(rulebaseId, ruleUid, currentRulebase, previousRulebase):
+                rule = currentRulebase.Rules[ruleUid]
+                prevRule = previousRulebase.Rules[ruleUid]
+                if rule.did_change(prevRule):
                     changedRuleUids[rulebaseId].append(ruleUid)
 
         # TODO: handle changedRuleUids        
@@ -107,6 +110,363 @@ class FwConfigImportRule(FwConfigImportBase):
         # TODO: rule_nwobj_resolved fuellen (recert?)
         return newRuleIds
 
+
+    def getRefsForRule(self, rule: Rule) -> Tuple[List[str], List[str], List[str], List[str]]:
+        """
+        Get the network object src and dst, service and user references for a given rule.
+
+        Args:
+            rule (Rule): The rule object containing src and dst references.
+        
+        Returns:
+            Tuple[List[str], List[str], List[str], List[str]]: A tuple containing:
+                - A list of resolved source references.
+                - A list of resolved destination references.
+                - A list of resolved service references.
+                - A list of user references.
+        """
+        srcRefs = []
+        dstRefs = []
+        svcRefs = []
+        userRefs = []
+        for srcRef in rule.rule_src_refs.split(fwo_const.list_delimiter):
+            if fwo_const.user_delimiter in srcRef:
+                userRef, nwRef = srcRef.split(fwo_const.user_delimiter)
+                userRefs.append(userRef)
+                srcRefs.append(nwRef)
+            else:
+                srcRefs.append(srcRef)
+        for dstRef in rule.rule_dst_refs.split(fwo_const.list_delimiter):
+            if fwo_const.user_delimiter in dstRef:
+                userRef, nwRef = dstRef.split(fwo_const.user_delimiter)
+                userRefs.append(userRef)
+                dstRefs.append(nwRef)
+            else:
+                dstRefs.append(dstRef)
+        for svcRef in rule.rule_svc_refs.split(fwo_const.list_delimiter):
+            svcRefs.append(svcRef)
+        return srcRefs, dstRefs, svcRefs, userRefs
+
+    def updateRule2ObjRefs(self, prevConfig: FwConfigNormalized):
+        logger = getFwoLogger()
+        rules = {}
+        prevConfigRules = {}
+        for rulebase in self.NormalizedConfig.rulebases:
+            for ruleUid, rule in rulebase.Rules.items():
+                rules.update({ ruleUid: rule })
+        for rulebase in prevConfig.rulebases:
+            for ruleUid, rule in rulebase.Rules.items():
+                prevConfigRules.update({ ruleUid: rule })
+
+        froms_to_remove = []
+        tos_to_remove = []
+        svcs_to_remove = []
+        nwobj_resolveds_to_remove = []
+        svc_resolveds_to_remove = []
+        user_resolveds_to_remove = []
+        froms_to_add = []
+        tos_to_add = []
+        svcs_to_add = []
+        nwobj_resolveds_to_add = []
+        svc_resolveds_to_add = []
+        user_resolveds_to_add = []
+
+        for ruleUid in (rules.keys() | prevConfigRules.keys()):
+            if ruleUid in prevConfigRules:
+                prevRule = prevConfigRules[ruleUid]
+                prevSrcRefs, prevDstRefs, prevSvcRefs, prevUserRefs = self.getRefsForRule(prevRule)
+                prevNwobjResolveds = self.group_flats_mapper.get_network_object_flats(prevSrcRefs + prevDstRefs)
+                prevSvcResolveds = self.group_flats_mapper.get_service_object_flats(prevSvcRefs)
+                prevUserResolveds = self.group_flats_mapper.get_user_flats(prevUserRefs)
+                if ruleUid in rules:
+                    rule = rules[ruleUid]
+                    if rule.did_change(prevRule):
+                        srcRefs = []
+                        dstRefs = []
+                        svcRefs = []
+                        nwobjResolveds = []
+                        svcResolveds = []
+                        userResolveds = []
+                    else:
+                        srcRefs, dstRefs, svcRefs, userRefs = self.getRefsForRule(rule)
+                        nwobjResolveds = self.group_flats_mapper.get_network_object_flats(srcRefs + dstRefs)
+                        svcResolveds = self.group_flats_mapper.get_service_flats(svcRefs)
+                        userResolveds = self.group_flats_mapper.get_user_flats(userRefs)
+                    # check for added or changed refs
+                    for prevSrcRef in prevSrcRefs:
+                        if prevSrcRef in srcRefs:
+                            if not self.uid2id_mapper.outdated_nwobj_id_exists(prevSrcRef):
+                                continue # did not change, skip
+                            froms_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "obj_id": self.uid2id_mapper.get_network_object_id(prevSrcRef, before_update=True) },
+                                ]
+                            })
+                        froms_to_add.append({
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'obj_id': self.uid2id_mapper.get_network_object_id(prevSrcRef),
+                            'user_id': None,   # TODO: implement getting user information
+                            'rf_create': self.ImportDetails.ImportId,
+                            'rf_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                            'negated': rule.rule_src_neg,
+                        })
+                    for prevDstRef in prevDstRefs:
+                        if prevDstRef in dstRefs:
+                            if not self.uid2id_mapper.outdated_nwobj_id_exists(prevDstRef):
+                                continue # did not change, skip
+                            tos_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "obj_id": self.uid2id_mapper.get_network_object_id(prevDstRef, before_update=True) },
+                                ]
+                            })
+                        tos_to_add.append({
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'obj_id': self.uid2id_mapper.get_network_object_id(prevDstRef),
+                            'user_id': None,   # TODO: implement getting user information
+                            'rt_create': self.ImportDetails.ImportId,
+                            'rt_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                            'negated': rule.rule_dst_neg,
+                        })
+                    for prevSvcRef in prevSvcRefs:
+                        if prevSvcRef in svcRefs:
+                            if not self.uid2id_mapper.outdated_svc_id_exists(prevSvcRef):
+                                continue # did not change, skip
+                            svcs_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "svc_id": self.uid2id_mapper.get_service_object_id(prevSvcRef, before_update=True) },
+                                ]
+                            })
+                        svcs_to_add.append({
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'svc_id': self.uid2id_mapper.get_service_object_id(prevSvcRef),
+                            'rs_create': self.ImportDetails.ImportId,
+                            'rs_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                            'negated': rule.rule_svc_neg,
+                        })
+                    for prevNwobjResolved in prevNwobjResolveds:
+                        if prevNwobjResolved in nwobjResolveds:
+                            if not self.uid2id_mapper.outdated_nwobj_id_exists(prevNwobjResolved):
+                                continue
+                            nwobj_resolveds_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "obj_id": self.uid2id_mapper.get_network_object_id(prevNwobjResolved, before_update=True) },
+                                ]
+                            })
+                        nwobj_resolveds_to_add.append({
+                            'mgm_id': self.ImportDetails.MgmDetails.Id,
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'obj_id': self.uid2id_mapper.get_network_object_id(prevNwobjResolved),
+                            'created': self.ImportDetails.ImportId,
+                        })
+                    for prevSvcResolved in prevSvcResolveds:
+                        if prevSvcResolved in svcResolveds:
+                            if not self.uid2id_mapper.outdated_svc_id_exists(prevSvcResolved):
+                                continue
+                            svc_resolveds_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "svc_id": self.uid2id_mapper.get_service_object_id(prevSvcResolved, before_update=True) },
+                                ]
+                            })
+                        svc_resolveds_to_add.append({
+                            'mgm_id': self.ImportDetails.MgmDetails.Id,
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'svc_id': self.uid2id_mapper.get_service_object_id(prevSvcResolved),
+                            'created': self.ImportDetails.ImportId,
+                        })
+                    for prevUserResolved in prevUserResolveds:
+                        if prevUserResolved in userResolveds:
+                            if not self.uid2id_mapper.outdated_user_id_exists(prevUserResolved):
+                                continue
+                            user_resolveds_to_remove.append({
+                                "_and": [
+                                    { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                    { "user_id": self.uid2id_mapper.get_user_id(prevUserResolved, before_update=True) },
+                                ]
+                            })
+                        user_resolveds_to_add.append({
+                            'mgm_id': self.ImportDetails.MgmDetails.Id,
+                            'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                            'user_id': self.uid2id_mapper.get_user_id(prevUserResolved),
+                            'created': self.ImportDetails.ImportId,
+                        })
+                else:
+                    # rule has been deleted, remove all references
+                    for prevSrcRef in prevSrcRefs:
+                        froms_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "obj_id": self.uid2id_mapper.get_network_object_id(prevSrcRef, before_update=True) },
+                            ]
+                        })
+                    for prevDstRef in prevDstRefs:
+                        tos_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "obj_id": self.uid2id_mapper.get_network_object_id(prevDstRef, before_update=True) },
+                            ]
+                        })
+                    for prevSvcRef in prevSvcRefs:
+                        svcs_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "svc_id": self.uid2id_mapper.get_service_object_id(prevSvcRef, before_update=True) },
+                            ]
+                        })
+                    for prevNwobjResolved in prevNwobjResolveds:
+                        nwobj_resolveds_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "obj_id": self.uid2id_mapper.get_network_object_id(prevNwobjResolved, before_update=True) },
+                            ]
+                        })
+                    for prevSvcResolved in prevSvcResolveds:
+                        svc_resolveds_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "svc_id": self.uid2id_mapper.get_service_object_id(prevSvcResolved, before_update=True) },
+                            ]
+                        })
+                    for prevUserResolved in prevUserResolveds:
+                        user_resolveds_to_remove.append({
+                            "_and": [
+                                { "rule_id": self.uid2id_mapper.get_rule_id(ruleUid, before_update=True) },
+                                { "user_id": self.uid2id_mapper.get_user_id(prevUserResolved, before_update=True) },
+                            ]
+                        })
+            else:
+                # rule has been added, add all references
+                rule = rules[ruleUid]
+                srcRefs, dstRefs, svcRefs, userRefs = self.getRefsForRule(rule)
+                nwobjResolveds = self.group_flats_mapper.get_network_object_flats(srcRefs + dstRefs)
+                svcResolveds = self.group_flats_mapper.get_service_object_flats(svcRefs)
+                userResolveds = self.group_flats_mapper.get_user_flats(userRefs)
+                for srcRef in srcRefs:
+                    froms_to_add.append({
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'obj_id': self.uid2id_mapper.get_network_object_id(srcRef),
+                        'user_id': None,   # TODO: implement getting user information
+                        'rf_create': self.ImportDetails.ImportId,
+                        'rf_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                        'negated': rule.rule_src_neg,
+                    })
+                for dstRef in dstRefs:
+                    tos_to_add.append({
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'obj_id': self.uid2id_mapper.get_network_object_id(dstRef),
+                        'user_id': None,   # TODO: implement getting user information
+                        'rt_create': self.ImportDetails.ImportId,
+                        'rt_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                        'negated': rule.rule_dst_neg,
+                    })
+                for svcRef in svcRefs:
+                    svcs_to_add.append({
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'svc_id': self.uid2id_mapper.get_service_object_id(svcRef),
+                        'rs_create': self.ImportDetails.ImportId,
+                        'rs_last_seen': self.ImportDetails.ImportId, # to be removed in the future
+                        'negated': rule.rule_svc_neg,
+                    })
+                for nwobjResolved in nwobjResolveds:
+                    nwobj_resolveds_to_add.append({
+                        'mgm_id': self.ImportDetails.MgmDetails.Id,
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'obj_id': self.uid2id_mapper.get_network_object_id(nwobjResolved),
+                        'created': self.ImportDetails.ImportId,
+                    })
+                for svcResolved in svcResolveds:
+                    svc_resolveds_to_add.append({
+                        'mgm_id': self.ImportDetails.MgmDetails.Id,
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'svc_id': self.uid2id_mapper.get_service_object_id(svcResolved),
+                        'created': self.ImportDetails.ImportId,
+                    })
+                for userResolved in userResolveds:
+                    user_resolveds_to_add.append({
+                        'mgm_id': self.ImportDetails.MgmDetails.Id,
+                        'rule_id': self.uid2id_mapper.get_rule_id(ruleUid),
+                        'user_id': self.uid2id_mapper.get_user_id(userResolved),
+                        'created': self.ImportDetails.ImportId,
+                    })
+
+        # update the database
+        to_remove_count = len(froms_to_remove) + len(tos_to_remove) + len(svcs_to_remove) + len(nwobj_resolveds_to_remove) + len(svc_resolveds_to_remove) + len(user_resolveds_to_remove)
+        to_add_count = len(froms_to_add) + len(tos_to_add) + len(svcs_to_add) + len(nwobj_resolveds_to_add) + len(svc_resolveds_to_add) + len(user_resolveds_to_add)
+        changes = 0
+
+        if to_remove_count > 0:
+            import_mutation = """
+                mutation removeOutdatedRuleRefs($froms: [rule_from_bool_exp], $tos: [rule_to_bool_exp], $svcs: [rule_service_bool_exp], $nwobj_resolveds: [rule_nwobj_resolved_bool_exp], $svc_resolveds: [rule_svc_resolved_bool_exp], $user_resolveds: [rule_user_resolved_bool_exp]) {
+                    delete_rule_from(where: { _or: $froms }) {
+                        affected_rows
+                    }
+                    delete_rule_to(where: { _or: $tos }) {
+                        affected_rows
+                    }
+                    delete_rule_service(where: { _or: $svcs }) {
+                        affected_rows
+                    }
+                    delete_rule_nwobj_resolved(where: { _or: $nwobj_resolveds }) {
+                        affected_rows
+                    }
+                    delete_rule_svc_resolved(where: { _or: $svc_resolveds }) {
+                        affected_rows
+                    }
+                    delete_rule_user_resolved(where: { _or: $user_resolveds }) {
+                        affected_rows
+                    }
+                }
+            """
+            queryVariables = {
+                'froms': froms_to_remove,
+                'tos': tos_to_remove,
+                'svcs': svcs_to_remove,
+                'nwobj_resolveds': nwobj_resolveds_to_remove,
+                'svc_resolveds': svc_resolveds_to_remove,
+                'user_resolveds': user_resolveds_to_remove,
+            }
+            try:
+                import_result = self.ImportDetails.call(import_mutation, queryVariables=queryVariables)
+                if 'errors' in import_result:
+                    logger.exception(f"fwconfig_import_rule:updateRule2ObjRefs - error in addNewRules: {str(import_result['errors'])}")
+                    return 1, 0
+                else:
+                    changes += import_result['data']['delete_rule_from']['affected_rows'] + import_result['data']['delete_rule_to']['affected_rows'] \
+                        + import_result['data']['delete_rule_service']['affected_rows'] + import_result['data']['delete_rule_nwobj_resolved']['affected_rows'] \
+                        + import_result['data']['delete_rule_svc_resolved']['affected_rows'] + import_result['data']['delete_rule_user_resolved']['affected_rows']
+                    if changes < to_remove_count:
+                        logger.warning(f"fwconfig_import_rule:updateRule2ObjRefs - only {changes} of {to_remove_count} expected rule references removed")
+            except Exception:
+                logger.exception(f"failed to remove outdated rule references: {str(traceback.format_exc())}")
+                raise fwo_exceptions.FwoApiWriteError(f"failed to remove outdated rule references: {str(traceback.format_exc())}")
+    
+        if to_add_count > 0:
+            import_mutation = fwo_api.getGraphqlCode([fwo_const.graphqlQueryPath + "rule/addNewRuleRefs.graphql"])
+            queryVariables = {
+                'froms': froms_to_add,
+                'tos': tos_to_add,
+                'svcs': svcs_to_add,
+                'nwobj_resolveds': nwobj_resolveds_to_add,
+                'svc_resolveds': svc_resolveds_to_add,
+                'user_resolveds': user_resolveds_to_add,
+            }
+            try:
+                import_result = self.ImportDetails.call(import_mutation, queryVariables=queryVariables)
+                if 'errors' in import_result:
+                    logger.exception(f"fwconfig_import_rule:updateRule2ObjRefs - error in addNewRules: {str(import_result['errors'])}")
+                    return 1, 0
+                else:
+                    changes += import_result['data']['insert_rule_from']['affected_rows'] + import_result['data']['insert_rule_to']['affected_rows'] \
+                        + import_result['data']['insert_rule_service']['affected_rows'] + import_result['data']['insert_rule_nwobj_resolved']['affected_rows'] \
+                        + import_result['data']['insert_rule_svc_resolved']['affected_rows'] + import_result['data']['insert_rule_user_resolved']['affected_rows']
+                    return 0, changes
+            except Exception:
+                logger.exception(f"failed to add new rule references: {str(traceback.format_exc())}")
+                raise fwo_exceptions.FwoApiWriteError(f"failed to add new rule references: {str(traceback.format_exc())}")
 
     def addNewRule2ObjRefs(self, newRules):
         # for each new rule: add refs in rule_to and rule_from
@@ -268,12 +628,6 @@ class FwConfigImportRule(FwConfigImportBase):
             rb.Rules = list(rb.Rules.values())
         return rulebases
     
-
-    def ruleChanged(self, rulebaseId, ruleUid, currentRulebase: Rulebase, prevRulebase: Rulebase):
-        # TODO: need to ignore rule_num, last_hit, ...?
-        return prevRulebase.Rules[ruleUid] != currentRulebase.Rules[ruleUid]
-        # return prevConfig.rulebases[rulebaseId].Rules[ruleUid] != self.NormalizedConfig.rulebases[rulebaseId].Rules[ruleUid]
-        # return prevConfig['rules'][rulebaseId]['Rules'][ruleUid] != self.rulebases[rulebaseId]['Rules'][ruleUid]
 
     # assuming input of form:
     # {'rule-uid1': {'rule_num': 17', ... }, 'rule-uid2': {'rule_num': 8, ...}, ... }

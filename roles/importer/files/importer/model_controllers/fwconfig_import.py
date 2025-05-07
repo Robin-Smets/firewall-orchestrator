@@ -60,8 +60,10 @@ class FwConfigImport(FwConfigImportObject, FwConfigImportRule, FwConfigImportGat
         # get new rules details from API (for obj refs as well as enforcing gateways)
         errors, changes, newRules = self.getRulesByIdWithRefUids(newRuleIds)
 
-        self.addNewRule2ObjRefs(newRules)
-        #TODO: self.addNewRule2SvcRefs(newRules)
+
+        self.uid2id_mapper.update_rule_mapping() # TODO: fetch once before adding new/changed rules, update after
+        self.updateRule2ObjRefs(previousConfig)
+
 
         enforcingController = RuleEnforcedOnGatewayController(self.ImportDetails)
         ids = enforcingController.addNewRuleEnforcedOnGatewayRefs(newRules, self.ImportDetails)
