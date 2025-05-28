@@ -7,8 +7,10 @@ using FWO.Data.Report;
 using FWO.FwLogic;
 using FWO.Logging;
 using FWO.Report.Filter;
+using FWO.Services;
 using FWO.Ui.Display;
 using Newtonsoft.Json;
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
 
@@ -32,7 +34,19 @@ namespace FWO.Report
         protected bool UseAdditionalFilter = false;
         private bool VarianceMode = false;
 
-        public ReportRules(DynGraphqlQuery query, UserConfig userConfig, ReportType reportType) : base(query, userConfig, reportType) { }
+        private static List<Rule>? _processedRules;
+        private static List<RulebaseReport>? _processedRulebases;
+        private static List<RulebaseLink>? _processedRulebaseLinks;
+        private static RulebaseLink? _currentRulebaseLink;
+        private static Queue<RulebaseLink>? _remainingRulebaseLinks;
+        private static List<int>? _ruleOrderPath;
+        private static RulebaseReport? _currentRulebase;
+
+
+        public ReportRules(DynGraphqlQuery query, UserConfig userConfig, ReportType reportType) : base(query, userConfig, reportType)
+        {
+
+        }
 
         public override async Task Generate(int rulesPerFetch, ApiConnection apiConnection, Func<ReportData, Task> callback, CancellationToken ct)
         {
@@ -191,6 +205,7 @@ namespace FWO.Report
             }
             return [];
         }
+
         public static Rule[] GetInitialRulesOfGateway(DeviceReportController deviceReport, ManagementReport managementReport)
         {
             int? initialRulebaseId = deviceReport.GetInitialRulebaseId(managementReport);
@@ -204,61 +219,129 @@ namespace FWO.Report
             }
             return [];
         }
+
         public static Rule[] GetAllRulesOfGateway(DeviceReportController deviceReport, ManagementReport managementReport)
         {
-            int? initialRulebaseId = deviceReport.GetInitialRulebaseId(managementReport);
-            if (initialRulebaseId != null)
+            List<Rule> allRules = new();
+
+            _remainingRulebaseLinks = new Queue<RulebaseLink>(deviceReport.RulebaseLinks);
+            _currentRulebaseLink = _remainingRulebaseLinks.Dequeue();
+
+            _processedRulebaseLinks = new();
+            _processedRulebases = new();
+            _processedRules = new();
+            _ruleOrderPath = new();
+
+            // Get initial rulebase.
+
+            int? initialRulebaseId = deviceReport.GetInitialRulebaseId(managementReport) ?? 0;
+            _currentRulebase = managementReport.Rulebases.FirstOrDefault(rulebase => rulebase.Id == initialRulebaseId);
+
+            if (initialRulebaseId == 0 || _currentRulebase == null)
             {
-                List<Rule> initialRules = GetRulesByRulebaseId((int)initialRulebaseId, managementReport).ToList();
-                if (initialRules != null)
+                return allRules.ToArray();
+            }
+
+            List<Rule>? nextRules = _currentRulebase.Rules.ToList();
+
+            // Gather rules recursiveley
+
+            while (_currentRulebaseLink != null) // TODO: loop by links (from rulebaseId -> to rulebaseId)
+            {
+                if (_processedRulebaseLinks.Count() == 0 && _currentRulebaseLink.IsInitial)
                 {
-                    List<Rule> allRules = GetAllRulesOfGatewayRecursively(deviceReport, managementReport, [], initialRules);
+                    _ruleOrderPath.AddRange([1, 0]);
+                }
+                else if (_currentRulebaseLink.LinkType == 2)
+                {
+                    _ruleOrderPath = new() { _ruleOrderPath[0] + 1, 0 };
+                    nextRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
 
-                    // create hierarchical order number on runtime
-                    CreateOrderNumbers(allRules, deviceReport);
+                }
+                else if (_currentRulebaseLink.LinkType == 4 ) // concatenated
+                {
+                    nextRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
+                }
+        //         else if (_currentRulebaseLink.LinkType == 3 )
+        //         {
+        //             _ruleOrderPath.Add(0);
+        //   }          List<Rule> inlineLayerRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
+                
 
-                    return allRules.ToArray();
+                GatherRules(nextRules, allRules, managementReport);
+
+                if (_remainingRulebaseLinks.Count > 0)
+                {
+                    _currentRulebaseLink = _remainingRulebaseLinks.Dequeue();
+                }
+                else
+                {
+                    _currentRulebaseLink = null;
                 }
             }
-            return [];
+
+            return allRules.ToArray();
         }
 
-        public static List<Rule> GetAllRulesOfGatewayRecursively(DeviceReport deviceReport, ManagementReport managementReport, List<Rule> rulesSoFar, List<Rule> newRules)
+        private static void GatherRules(List<Rule>? nextRules, List<Rule> allRules, ManagementReport managementReport)
         {
-            if (newRules == null || newRules.Count == 0)
+            // if nextRules is null, something went wrong
+
+            if (nextRules == null)
             {
-                return rulesSoFar;
+                return;
             }
 
-            List<Rule> allRules = new(rulesSoFar);
-            HashSet<long> visitedRuleIds = new(rulesSoFar.Select(r => r.Id)); // Track visited rules to prevent duplication
-
-            foreach (Rule rule in newRules)
+            // if nextRules is empty it has to be updated
+            
+            if (nextRules.Count() == 0)
             {
-                if (visitedRuleIds.Add(rule.Id))
+
+            }
+            
+            for (int i = 0; i < nextRules.Count(); i++)
+            {
+                Rule nextRule = nextRules.ElementAt(i);
+
+                if (nextRule.Uid == "4b03cdb6-6209-4506-91ea-77403bda9dad")
                 {
-                    allRules.Add(rule);
-                    RulebaseLink? fromRuleNextRbLink = deviceReport.RulebaseLinks.FirstOrDefault(_ => _.FromRuleId == rule.Id);
-                    if (fromRuleNextRbLink != null)
+
+                }
+                if ((bool)(allRules?.Contains(nextRule)))
+                {
+                    nextRule = nextRule.CreateClone();
+                }
+
+                _ruleOrderPath[_ruleOrderPath.Count - 1] = _ruleOrderPath.Last() + 1;
+
+                nextRule.OrderNumber = allRules.Count() + 1;
+                nextRule.DisplayOrderNumberString = string.Join(".", _ruleOrderPath); ;
+                allRules.Add(nextRule);
+                _processedRules?.Add(nextRule);
+
+
+                // Handle rulebase links with from rules
+
+                RulebaseLink? rulebaseLink = _remainingRulebaseLinks?.FirstOrDefault(rulebaseLink => rulebaseLink.FromRuleId != null && rulebaseLink.FromRuleId == nextRule.Id);
+                if (rulebaseLink != null)
+                {
+                    switch (rulebaseLink.LinkType)
                     {
-                        List<Rule> subRules = GetRulesByRulebaseId(fromRuleNextRbLink.NextRulebaseId, managementReport).ToList();
-                        allRules = GetAllRulesOfGatewayRecursively(deviceReport, managementReport, allRules, subRules);
+                        case 2: // from global to domain rules
+                            throw new NotImplementedException();
+
+                        case 3: // inline layer
+                            _ruleOrderPath.Add(0);
+                            List<Rule> inlineLayerRules = GetRulesByRulebaseId(rulebaseLink.NextRulebaseId, managementReport).ToList();
+                            GatherRules(inlineLayerRules, allRules, managementReport);
+                            break;
+
+                        default: // unexpected from rule id
+                            throw new NotImplementedException();
                     }
                 }
             }
-            // add rules from the next rulebase, assuming all newRules are from the same rulebase
-            RulebaseLink? fromRulebaseNextRbLink = new();
-            var firstRule = newRules.FirstOrDefault();
-            fromRulebaseNextRbLink = firstRule != null ? deviceReport.RulebaseLinks.FirstOrDefault(_ => _.FromRulebaseId == firstRule.RulebaseId && _.FromRuleId == null) : null; // always set to next rulebase
-            if (fromRulebaseNextRbLink != null)
-            {
-                List<Rule> subRules = GetRulesByRulebaseId(fromRulebaseNextRbLink.NextRulebaseId, managementReport).ToList();
-                allRules = GetAllRulesOfGatewayRecursively(deviceReport, managementReport, allRules, subRules);
-            }
-            return allRules;
         }
-
-
 
         public static int GetRuleCount(ManagementReport mgmReport, RulebaseLink? currentRbLink, RulebaseLink[] rulebaseLinks)
         {
@@ -296,7 +379,7 @@ namespace FWO.Report
         /// <summary>
         /// Creates multi-level (dotted) order numbers for display and sets internal numeric order for sorting.
         /// </summary>
-        public static void CreateOrderNumbers(List<Rule> rules, DeviceReport device)
+        public static void CreateOrderNumbers(List<Rule> rules, DeviceReport device, int initialRulebaseId)
         {
             // Creates a dictionary with rulebase IDs as keys and lists of the corresponding rows as values.
 
@@ -307,6 +390,7 @@ namespace FWO.Report
             // Normalize actual order numbers to incremental int like form.
 
             NormalizeOrderNumbers(rulesByRulebase);
+            
 
             // Creates a dictionary with rule IDs as keys and the rulebase link that has that rule as its from rule as values.
 
@@ -320,7 +404,7 @@ namespace FWO.Report
             List<int> initialPath = new();
             int positionCounter = 1;
             int firstRulebaseId = device.RulebaseLinks.First(link => link.IsInitialRulebase()).NextRulebaseId;
-            
+
             // If there are more than one layer path needs to be initialized here.
 
             if(device.RulebaseLinks.Any(link => link.LinkType == 2))    // ordered
@@ -387,14 +471,17 @@ namespace FWO.Report
         /// <param name="rulesByRulebase"></param>
         private static void NormalizeOrderNumbers(Dictionary<int, List<Rule>> rulesByRulebase)
         {
+            int rulebaseNumber = 0;
             foreach (KeyValuePair<int, List<Rule>> rulebaseRules in rulesByRulebase)
             {
                 int relativeOrderNumber = 1;
+                rulebaseNumber++;
 
                 foreach (Rule rule in rulebaseRules.Value.ToList())
                 {
                     rule.RuleOrderNumber = relativeOrderNumber;
                     relativeOrderNumber++;
+                    rule.DisplayOrderNumberString = $"{rulebaseNumber}.{rule.RuleOrderNumber}-{rule.OrderNumber}";
                 }
             }
         }

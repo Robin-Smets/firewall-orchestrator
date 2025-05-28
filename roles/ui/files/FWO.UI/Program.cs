@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using RestSharp;
 using FWO.Services.EventMediator.Interfaces;
 using FWO.Services.EventMediator;
+using FWO.Services;
 
 
 // Implicitly call static constructor so background lock process is started
@@ -39,6 +40,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
 builder.Services.AddScoped<CircuitHandler, CircuitHandlerService>();
 builder.Services.AddScoped<KeyboardInputService, KeyboardInputService>();
 builder.Services.AddScoped<IEventMediator, EventMediator>();
+builder.Services.AddScoped<IReportRulesStructureService, ReportRulesStructureService>();
 
 string ApiUri = ConfigFile.ApiServerUri;
 string MiddlewareUri = ConfigFile.MiddlewareServerUri;
