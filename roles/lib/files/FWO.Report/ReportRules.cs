@@ -223,117 +223,144 @@ namespace FWO.Report
         public static Rule[] GetAllRulesOfGateway(DeviceReportController deviceReport, ManagementReport managementReport)
         {
             List<Rule> allRules = new();
+            List<Rule> processedRules = new();
+            List<RulebaseLink> processedRulebaseLinks = new();
+            List<int> ruleOrderPath = new();
 
-            _remainingRulebaseLinks = new Queue<RulebaseLink>(deviceReport.RulebaseLinks);
-            _currentRulebaseLink = _remainingRulebaseLinks.Dequeue();
+            Dictionary<RulebaseLink, RulebaseReport> mappedRulebases = new();
 
-            _processedRulebaseLinks = new();
-            _processedRulebases = new();
-            _processedRules = new();
-            _ruleOrderPath = new();
-
-            // Get initial rulebase.
-
-            int? initialRulebaseId = deviceReport.GetInitialRulebaseId(managementReport) ?? 0;
-            _currentRulebase = managementReport.Rulebases.FirstOrDefault(rulebase => rulebase.Id == initialRulebaseId);
-
-            if (initialRulebaseId == 0 || _currentRulebase == null)
+            foreach (RulebaseLink rulebaseLink in deviceReport.RulebaseLinks)
             {
-                return allRules.ToArray();
+                mappedRulebases[rulebaseLink] = managementReport.Rulebases.First(rulebase => rulebase.Id == rulebaseLink.NextRulebaseId);
             }
-
-            List<Rule>? nextRules = _currentRulebase.Rules.ToList();
 
             // Gather rules recursiveley
 
-            while (_currentRulebaseLink != null) // TODO: loop by links (from rulebaseId -> to rulebaseId)
+            foreach (KeyValuePair<RulebaseLink, RulebaseReport> mappedRulebase in mappedRulebases)
             {
-                if (_processedRulebaseLinks.Count() == 0 && _currentRulebaseLink.IsInitial)
+                if (mappedRulebase.Key.IsInitial)
                 {
-                    _ruleOrderPath.AddRange([1, 0]);
+                    ruleOrderPath.AddRange([1,0]);
                 }
-                else if (_currentRulebaseLink.LinkType == 2)
-                {
-                    _ruleOrderPath = new() { _ruleOrderPath[0] + 1, 0 };
-                    nextRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
 
-                }
-                else if (_currentRulebaseLink.LinkType == 4 ) // concatenated
-                {
-                    nextRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
-                }
-        //         else if (_currentRulebaseLink.LinkType == 3 )
-        //         {
-        //             _ruleOrderPath.Add(0);
-        //   }          List<Rule> inlineLayerRules = GetRulesByRulebaseId(_currentRulebaseLink.NextRulebaseId, managementReport).ToList();
-                
-
-                GatherRules(nextRules, allRules, managementReport);
-
-                if (_remainingRulebaseLinks.Count > 0)
-                {
-                    _currentRulebaseLink = _remainingRulebaseLinks.Dequeue();
-                }
-                else
-                {
-                    _currentRulebaseLink = null;
-                }
+                GatherRules(mappedRulebases, mappedRulebase, allRules, processedRulebaseLinks, processedRules, ref ruleOrderPath);
             }
 
             return allRules.ToArray();
         }
 
-        private static void GatherRules(List<Rule>? nextRules, List<Rule> allRules, ManagementReport managementReport)
+        private static void GatherRules(Dictionary<RulebaseLink, RulebaseReport> mappedRulebases
+                                        , KeyValuePair<RulebaseLink, RulebaseReport> currentMappedRulebase
+                                        , List<Rule> allRules
+                                        , List<RulebaseLink> processedRulebaseLinks
+                                        , List<Rule> processedRules
+                                        , ref List<int> ruleOrderPath)
         {
-            // if nextRules is null, something went wrong
 
-            if (nextRules == null)
+            if (processedRulebaseLinks.Contains(currentMappedRulebase.Key))
             {
                 return;
             }
 
-            // if nextRules is empty it has to be updated
-            
-            if (nextRules.Count() == 0)
+            int localIndex = ruleOrderPath.Last();
+
+            foreach (Rule rule in currentMappedRulebase.Value.Rules)
             {
+                Rule nextRule = rule;
 
-            }
-            
-            for (int i = 0; i < nextRules.Count(); i++)
-            {
-                Rule nextRule = nextRules.ElementAt(i);
-
-                if (nextRule.Uid == "4b03cdb6-6209-4506-91ea-77403bda9dad")
+                if (processedRules.Contains(rule))
                 {
-
-                }
-                if ((bool)(allRules?.Contains(nextRule)))
-                {
-                    nextRule = nextRule.CreateClone();
+                    nextRule = rule.CreateClone();
                 }
 
-                _ruleOrderPath[_ruleOrderPath.Count - 1] = _ruleOrderPath.Last() + 1;
+                localIndex++;
 
                 nextRule.OrderNumber = allRules.Count() + 1;
-                nextRule.DisplayOrderNumberString = string.Join(".", _ruleOrderPath); ;
+                ruleOrderPath[ruleOrderPath.Count - 1] = localIndex;
+                nextRule.DisplayOrderNumberString = string.Join(".", ruleOrderPath);
+
                 allRules.Add(nextRule);
-                _processedRules?.Add(nextRule);
+                processedRules.Add(rule);
 
-
-                // Handle rulebase links with from rules
-
-                RulebaseLink? rulebaseLink = _remainingRulebaseLinks?.FirstOrDefault(rulebaseLink => rulebaseLink.FromRuleId != null && rulebaseLink.FromRuleId == nextRule.Id);
-                if (rulebaseLink != null)
+                if (rule.DisplayOrderNumberString == "2.22.17.2.1")
                 {
-                    switch (rulebaseLink.LinkType)
-                    {
-                        case 2: // from global to domain rules
-                            throw new NotImplementedException();
+                    
+                }
 
-                        case 3: // inline layer
-                            _ruleOrderPath.Add(0);
-                            List<Rule> inlineLayerRules = GetRulesByRulebaseId(rulebaseLink.NextRulebaseId, managementReport).ToList();
-                            GatherRules(inlineLayerRules, allRules, managementReport);
+                // Get next rulebase for inner layer.
+
+                KeyValuePair<RulebaseLink, RulebaseReport>? nextMappedRulebase = mappedRulebases.FirstOrDefault(mappedRulebase => mappedRulebase.Key.FromRuleId == rule.Id);
+
+                bool ruleCausesJump = nextMappedRulebase != null && nextMappedRulebase.Value.Key != null && nextMappedRulebase.Value.Value != null;
+
+                // Mark current rulebase link as processed.
+
+                if (rule == currentMappedRulebase.Value.Rules.Last())
+                {
+                    processedRulebaseLinks.Add(currentMappedRulebase.Key);
+
+                    if (!ruleCausesJump)
+                    {
+                        nextMappedRulebase = mappedRulebases
+                            .Where(mappedRulebase => !processedRulebaseLinks.Contains(mappedRulebase.Key))
+                            // .FirstOrDefault(mappedRulebase => currentMappedRulebase.Key.NextRulebaseId == mappedRulebase.Value.Id); // from rulebase id is null everywhere
+                            .FirstOrDefault();                        
+                    }
+
+                }
+
+                bool endOfRulebaseCausesJump = !ruleCausesJump && rule == currentMappedRulebase.Value.Rules.Last() && nextMappedRulebase != null && nextMappedRulebase.Value.Key != null && nextMappedRulebase.Value.Value != null;
+
+                // Update rule order path.
+
+                if (ruleCausesJump || endOfRulebaseCausesJump)
+                {
+                    switch (nextMappedRulebase.Value.Key.LinkType)
+                    {
+                        case 2: // ordered
+
+                            if (nextMappedRulebase.Value.Key.FromRuleId != null)
+                            {
+                                throw new NotImplementedException();
+                            }
+                            else
+                            {
+                                ruleOrderPath = new() { ruleOrderPath[0] + 1, 0 };
+                            }
+
+                            break;
+
+                        case 3: // inline
+
+                            if (ruleCausesJump)
+                            {
+                                ruleOrderPath.Add(0);
+                                GatherRules(mappedRulebases, nextMappedRulebase.Value, allRules, processedRulebaseLinks, processedRules, ref ruleOrderPath);
+                            }
+
+                            break;
+
+                        case 4: // concatenated
+
+                            if (nextMappedRulebase.Value.Key.FromRuleId != null)
+                            {
+                                throw new NotImplementedException();
+                            }
+                            else
+                            {
+                                if (processedRules.Any(rule => nextMappedRulebase.Value.Value.Rules.Contains(rule)))
+                                {
+                                    Rule lastRelevantProcessedRule = processedRules.Where(rule => nextMappedRulebase.Value.Value.Rules.Contains(rule)).Last();
+
+                                    ruleOrderPath = lastRelevantProcessedRule.DisplayOrderNumberString
+                                        .Split('.')
+                                        .Select(int.Parse)
+                                        .ToList();
+
+                                    // GatherRules(mappedRulebases, nextMappedRulebase.Value, allRules, processedRulebaseLinks, processedRules, ref ruleOrderPath);
+                                }
+                            }
+
                             break;
 
                         default: // unexpected from rule id
@@ -341,6 +368,21 @@ namespace FWO.Report
                     }
                 }
             }
+
+            if (!currentMappedRulebase.Value.Rules.Any())
+            {
+                processedRulebaseLinks.Add(currentMappedRulebase.Key);
+
+                if (currentMappedRulebase.Key.LinkType == 3)
+                {
+                    KeyValuePair<RulebaseLink, RulebaseReport>? nextMappedRulebase = mappedRulebases
+                        .Where(mappedRulebase => !processedRulebaseLinks.Contains(mappedRulebase.Key))
+                        .FirstOrDefault(mappedRulebaseLink => mappedRulebaseLink.Key.FromRulebaseId == currentMappedRulebase.Key.NextRulebaseId);
+
+                    GatherRules(mappedRulebases, nextMappedRulebase.Value, allRules, processedRulebaseLinks, processedRules, ref ruleOrderPath);
+                }
+            }
+
         }
 
         public static int GetRuleCount(ManagementReport mgmReport, RulebaseLink? currentRbLink, RulebaseLink[] rulebaseLinks)
