@@ -85,7 +85,8 @@ def get_config(nativeConfig: json, importState: ImportStateController) -> tuple[
 
     manager = FwConfigManager(ManagerUid=calcManagerUidHash(importState.MgmDetails),
                               ManagerName=importState.MgmDetails.Name,
-                              IsGlobal=False, 
+                              IsGlobal=False,
+                              IsSuperManager=importState.MgmDetails.IsSuperManager,
                               DependantManagerUids=[], 
                               Configs=[normalizedConfig])
     
