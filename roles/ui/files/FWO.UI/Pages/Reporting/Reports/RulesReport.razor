@@ -1,6 +1,9 @@
-﻿@inject UserConfig userConfig
-@using FWO.Report
+﻿@using FWO.Report
 @using FWO.Ui.Display
+@using FWO.Services.RuleTreeBuilder
+
+@inject UserConfig userConfig
+@inject IRuleTreeBuilder _ruleTreeBuilder
 
 @foreach (var management in Managements.Select(mgt => new ManagementReportController(mgt)))
 {
@@ -16,7 +19,7 @@
                         <Table SelectedItems="SelectedRules"
                             RowClickAction="@(async rule => { rule.DeviceName = device.Name ?? ""; if (!SelectedRules.Remove(rule)) SelectedRules.Add(rule); await SelectedRulesChanged.InvokeAsync(SelectedRules); })"
                             style="font-size:small" TableClass="table table-bordered table-sm th-bg-secondary table-responsive overflow-auto sticky-header" TableItem="Rule" 
-                            Items="ReportRules.GetAllRulesOfGateway(device, management)" ShowSearchBar="false"
+                            Items="ReportRules.GetAllRulesOfGateway(device, management, _ruleTreeBuilder)" ShowSearchBar="false"
                             PageSize="RulesPerPage" ColumnReorder="true" TableRowClass="@(rule => getTableRowClasses(rule))"
                             @ref="reportTable">
 

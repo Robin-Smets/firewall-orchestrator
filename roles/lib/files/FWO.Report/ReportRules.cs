@@ -35,8 +35,6 @@ namespace FWO.Report
         protected bool UseAdditionalFilter = false;
         private bool VarianceMode = false;
 
-        private static IRuleTreeBuilder? _ruleTreeBuilder;
-
         public ReportRules(DynGraphqlQuery query, UserConfig userConfig, ReportType reportType) : base(query, userConfig, reportType) { }
 
         public override async Task Generate(int rulesPerFetch, ApiConnection apiConnection, Func<ReportData, Task> callback, CancellationToken ct)
@@ -211,15 +209,13 @@ namespace FWO.Report
             return [];
         }
 
-        public static Rule[] GetAllRulesOfGateway(DeviceReportController deviceReport, ManagementReport managementReport)
+        public static Rule[] GetAllRulesOfGateway(DeviceReportController deviceReport, ManagementReport managementReport, IRuleTreeBuilder ruleTreeBuilder)
         {
-            _ruleTreeBuilder = FWO.Services.ServiceProvider.UiServices.GetService<IRuleTreeBuilder>();
-
             List<Rule> allRules = new();
 
-            if (_ruleTreeBuilder.BuildRulebaseLinkQueue(deviceReport.RulebaseLinks, managementReport.Rulebases) != null)
+            if (ruleTreeBuilder.BuildRulebaseLinkQueue(deviceReport.RulebaseLinks, managementReport.Rulebases) != null)
             {
-                allRules = _ruleTreeBuilder.BuildRuleTree(); 
+                allRules = ruleTreeBuilder.BuildRuleTree(); 
             }
 
             return allRules.ToArray();

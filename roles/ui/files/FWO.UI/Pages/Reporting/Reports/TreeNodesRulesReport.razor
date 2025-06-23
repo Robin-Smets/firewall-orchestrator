@@ -1,11 +1,15 @@
-﻿@implements IDisposable
-@inject UserConfig userConfig
-@inject IEventMediator EventMediator
-@using FWO.Report
+﻿@using FWO.Report
 @using FWO.Report.Data
 @using FWO.Services.EventMediator.Events
 @using FWO.Services.EventMediator.Interfaces
+@using FWO.Services.RuleTreeBuilder
 @using FWO.Ui.Display
+
+@implements IDisposable
+
+@inject UserConfig userConfig
+@inject IEventMediator EventMediator
+@inject IRuleTreeBuilder _ruleTreeBuilder
 
 @if(IsLoading)
 {
@@ -17,7 +21,7 @@
 }
 else
 {
-    <TreeTable TItem="Rule" Nodes="RulesNodes">
+    <TreeTable @ref="_treeTable" TItem="Rule" Nodes="RulesNodes">
         <CellTemplate Context="rule">
             @if(rule is not null)
             {
@@ -33,6 +37,8 @@ else
 
     [Parameter, EditorRequired]
     required public ReportType SelectedReportType { get; set; }
+
+    private TreeTable<Rule>? _treeTable; 
 
     private List<TreeNode<Rule>> RulesNodes = new List<TreeNode<Rule>>();
     private bool IsLoading = false;
@@ -67,8 +73,13 @@ else
                         continue;
                     }
 
-                    DeviceReportController device = DeviceReportController.FromDeviceReport(devReport);                    
-                    var test = ReportRules.GetAllRulesOfGateway(device, management);
+                    DeviceReportController device = DeviceReportController.FromDeviceReport(devReport);      
+                    ReportRules.GetAllRulesOfGateway(device, management, _ruleTreeBuilder);
+
+                    foreach(RuleTreeItem ruleTreeItem in _ruleTreeBuilder.RuleTree.ElementsFlat)
+                    {
+                        RulesNodes.Add(ToTreeNode(ruleTreeItem));
+                    }  
                 }
             }
         }
@@ -83,4 +94,21 @@ else
     {
         EventMediator.Unsubscribe<ReportGenerationEvent>(nameof(ReportGenerationEvent));
     }
+
+    public static List<TreeNode<Rule>> ConvertToTreeNodes(List<RuleTreeItem> items)
+    {
+        return items.Select(ToTreeNode).ToList();
+    }
+
+    private static TreeNode<Rule> ToTreeNode(RuleTreeItem item)
+    {
+        List<TreeNode<Rule>> ruleTreeNodes = new();
+
+        return new TreeNode<Rule>((ITreeItem<Rule>)item)
+        {
+            Children = ruleTreeNodes,
+        };
+    }
+
+
 }
