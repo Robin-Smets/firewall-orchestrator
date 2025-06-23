@@ -103,10 +103,19 @@ else
     private static TreeNode<Rule> ToTreeNode(RuleTreeItem item)
     {
         List<TreeNode<Rule>> ruleTreeNodes = new();
+        string header = "";
+        bool isCollapsible = item.IsOrderedLayerHeader || item.IsSectionHeader || item.IsInlineLayerRoot;
+
+        if(item.IsOrderedLayerHeader || item.IsSectionHeader)
+        {
+            header = item.Header;
+        }
 
         return new TreeNode<Rule>((ITreeItem<Rule>)item)
         {
             Children = ruleTreeNodes,
+            Header = header,
+            IsCollapsible = isCollapsible
         };
     }
 
