@@ -76,7 +76,7 @@ else
                     DeviceReportController device = DeviceReportController.FromDeviceReport(devReport);      
                     ReportRules.GetAllRulesOfGateway(device, management, _ruleTreeBuilder);
 
-                    foreach(RuleTreeItem ruleTreeItem in _ruleTreeBuilder.RuleTree.ElementsFlat)
+                    foreach(RuleTreeItem ruleTreeItem in _ruleTreeBuilder.RuleTree.Children)
                     {
                         RulesNodes.Add(ToTreeNode(ruleTreeItem));
                     }  
@@ -103,6 +103,12 @@ else
     private static TreeNode<Rule> ToTreeNode(RuleTreeItem item)
     {
         List<TreeNode<Rule>> ruleTreeNodes = new();
+
+        foreach(RuleTreeItem child in item.Children)
+        {
+            ruleTreeNodes.Add(ToTreeNode(child));
+        }
+
         string header = "";
         bool isCollapsible = item.IsOrderedLayerHeader || item.IsSectionHeader || item.IsInlineLayerRoot;
 
