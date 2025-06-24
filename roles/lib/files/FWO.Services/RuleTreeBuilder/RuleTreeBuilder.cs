@@ -38,6 +38,10 @@ namespace FWO.Services.RuleTreeBuilder
         public List<Rule> BuildRuleTree()
         {
             List<int> lastPosition = new();
+            RuleTree = new();
+            CreatedOrderNumbersCount = 0;
+            OrderedLayerCount = 0;
+            _allRules.Clear();
 
             // Start outer loop.
 
