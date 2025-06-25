@@ -1,19 +1,22 @@
-﻿<th class="@HeadClass">
-    <div class="d-inline-flex align-items-center">
-        @Title
+﻿@if(!Hidden)
+{
+    <th class="@HeadClass">
+        <div class="d-inline-flex align-items-center">
+            @Title
 
-        <div class="d-block">
-            @if(Hideable)
-            {
-                <i class="bi bi-eye-slash ps-2 @HideClass"></i>
-            }
-            @if(Sortable)
-            {
-                <i class="bi @GetSortClass() ps-2 @SortClass" @onclick="OnSortClick"></i>
-            }
+            <div class="d-block">
+                @if(Hideable)
+                {
+                    <i class="bi bi-eye-slash ps-2 @HideClass" @onclick="OnHideClick"></i>
+                }
+                @if(Sortable)
+                {
+                    <i class="bi @GetSortClass() ps-2 @SortClass" @onclick="OnSortClick"></i>
+                }
+            </div>
         </div>
-    </div>
-</th>
+    </th>
+}
 
 @code {
     [Parameter, EditorRequired]
@@ -43,6 +46,8 @@
     [Parameter]
     public string? SortContext { get; set; }
 
+    public bool Hidden { get; set; } = false;
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -64,5 +69,10 @@
     private string GetSortClass()
     {
         return Sortable ? (SortAscending ? "bi-sort-up" : "bi-sort-down") : string.Empty;
+    }
+
+    private void OnHideClick()
+    {
+        Hidden = true;
     }
 }
