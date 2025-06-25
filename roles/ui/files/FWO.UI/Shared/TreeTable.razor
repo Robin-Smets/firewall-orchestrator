@@ -49,11 +49,11 @@
         <table class="tree-table">
             <thead>
                 <tr>
-                    <TableHead Title="@(userConfig.GetText("name"))" />
+                    <TableHead Title="@(userConfig.GetText("name"))" OnSort="SortBy" SortContext="Name" Sortable="true" SortAscending="SortAscending"/>
 
                     <TableHead Title="@(userConfig.GetText("number"))" OnSort="SortBy" SortContext="OrderNumber" Sortable="true" SortAscending="SortAscending"/>
                     <TableHead Title="@(userConfig.GetText("source_zone"))" Hideable="true" HideClass="text-secondary text-info-hover" />
-                    <TableHead Title="@(userConfig.GetText("source"))" />
+                    <TableHead Title="@(userConfig.GetText("source"))"/>
                     <TableHead Title="@(userConfig.GetText("destination_zone"))" />
                     <TableHead Title="@(userConfig.GetText("destination"))" />
                     <TableHead Title="@(userConfig.GetText("services"))" />
@@ -61,9 +61,9 @@
                     <TableHead Title="@(userConfig.GetText("track"))" />
                     <TableHead Title="@(userConfig.GetText("enabled"))" />
 
-                    <TableHead Title="@(userConfig.GetText("uid"))" Hideable="true" HideClass="text-secondary text-info-hover" />
+                    <TableHead Title="@(userConfig.GetText("uid"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Uid" Sortable="true" SortAscending="SortAscending"/>
 
-                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" />
+                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Comment" Sortable="true" SortAscending="SortAscending"/>
                 </tr>
             </thead>
             <tbody>
@@ -88,7 +88,6 @@
 
     private string? SortColumn { get; set; }
     private bool SortAscending { get; set; } = true;
-    //private bool NoSorting { get; set; } = false;
 
     private NatRuleDisplayHtml? RuleDisplay;
 
@@ -108,8 +107,7 @@
     /// <summary>
     /// Returns the filtered and sorted tree nodes for display.
     /// </summary>
-    private IEnumerable<TreeNode<TItem>> FilteredNodes =>
-        FilterAndSortNodes(Nodes);
+    private IEnumerable<TreeNode<TItem>> FilteredNodes => FilterAndSortNodes(Nodes);
 
     /// <summary>
     /// Filters and sorts the provided tree nodes based on search text and sorting options.
@@ -172,16 +170,11 @@
         return node;
     }
 
-    /// <summary>
+    @* /// <summary>
     /// Sorts the tree nodes based on the selected column and sort direction.
     /// </summary>
     private IEnumerable<TreeNode<TItem>> SortNodes(IEnumerable<TreeNode<TItem>> nodes)
     {
-        // if(NoSorting)
-        // {
-        //     return nodes;
-        // }
-
         if(typeof(TItem) == typeof(Rule))
         {
             if(SortColumn == nameof(Rule.Name))
@@ -212,7 +205,160 @@
             }
         }
         return nodes;
+    } *@
+
+    @* /// <summary>
+    /// Sorts the tree nodes based on the selected column and sort direction.
+    /// </summary>
+    private IEnumerable<TreeNode<TItem>> SortNodes(IEnumerable<TreeNode<TItem>> nodes)
+    {
+        if (typeof(TItem) == typeof(Rule))
+        {
+            // Filtere Nodes mit null-Item (außer für OrderNumber)
+            var filteredNodes = nodes.Where(n => n.Item != null);
+
+            if (SortColumn == nameof(Rule.Name))
+            {
+                return SortAscending
+                    ? filteredNodes.OrderBy(n => ((Rule)(object)n.Item).Name)
+                    : filteredNodes.OrderByDescending(n => ((Rule)(object)n.Item).Name);
+            }
+            else if (SortColumn == nameof(Rule.OrderNumber))
+            {
+                // Hier nicht filtern – Sortierung berücksichtigt Tree-Struktur
+                var ruleNodes = nodes.Cast<TreeNode<Rule>>().ToList();
+                var result = SortTreeNodesLexicographically(ruleNodes, SortAscending)
+                            .Cast<TreeNode<TItem>>();
+                return result;
+            }
+            else if (SortColumn == nameof(Rule.Uid))
+            {
+                return SortAscending
+                    ? filteredNodes.OrderBy(n => ((Rule)(object)n.Item).Uid)
+                    : filteredNodes.OrderByDescending(n => ((Rule)(object)n.Item).Uid);
+            }
+            else if (SortColumn == nameof(Rule.Comment))
+            {
+                return SortAscending
+                    ? filteredNodes.OrderBy(n => ((Rule)(object)n.Item).Comment)
+                    : filteredNodes.OrderByDescending(n => ((Rule)(object)n.Item).Comment);
+            }
+        }
+
+        return nodes;
+    } *@
+
+    @* private IEnumerable<TreeNode<TItem>> SortNodes(IEnumerable<TreeNode<TItem>> nodes)
+    {
+        if (typeof(TItem) == typeof(Rule))
+        {
+            if (SortColumn == nameof(Rule.OrderNumber))
+            {
+                // Belasse die Originalstruktur – nur lexikografisch sortieren
+                var ruleNodes = nodes.Cast<TreeNode<Rule>>().ToList();
+                var result = SortTreeNodesLexicographically(ruleNodes, SortAscending)
+                            .Cast<TreeNode<TItem>>();
+                return result;
+            }
+            else
+            {
+                // Nur gültige Nodes (mit Item != null), rekursiv einsammeln
+                IEnumerable<TreeNode<TItem>> FlattenValidNodes(IEnumerable<TreeNode<TItem>> source)
+                {
+                    foreach (var node in source)
+                    {
+                        if (node.Item != null)
+                        {
+                            yield return node;
+                        }
+
+                        if (node.Children != null)
+                        {
+                            foreach (var child in FlattenValidNodes(node.Children))
+                                yield return child;
+                        }
+                    }
+                }
+
+                var flatNodes = FlattenValidNodes(nodes);
+
+                Func<TreeNode<TItem>, object> keySelector = SortColumn switch
+                {
+                    nameof(Rule.Name)    => n => ((Rule)(object)n.Item).Name,
+                    nameof(Rule.Uid)     => n => ((Rule)(object)n.Item).Uid,
+                    nameof(Rule.Comment) => n => ((Rule)(object)n.Item).Comment,
+                    _                    => n => 0
+                };
+
+                return SortAscending
+                    ? flatNodes.OrderBy(keySelector)
+                    : flatNodes.OrderByDescending(keySelector);
+            }
+        }
+
+        return nodes;
+    } *@
+
+    private IEnumerable<TreeNode<TItem>> SortNodes(IEnumerable<TreeNode<TItem>> nodes)
+    {
+        if (typeof(TItem) == typeof(Rule))
+        {
+            if (SortColumn == nameof(Rule.OrderNumber))
+            {
+                // Beibehaltung der Struktur für OrderNumber
+                var ruleNodes = nodes.Cast<TreeNode<Rule>>().ToList();
+                return SortTreeNodesLexicographically(ruleNodes, SortAscending)
+                    .Cast<TreeNode<TItem>>();
+            }
+            else
+            {
+                // Rekursiv alle TreeNodes extrahieren, deren Item eine Rule ist
+                IEnumerable<TreeNode<TItem>> FlattenRuleNodes(IEnumerable<TreeNode<TItem>> source)
+                {
+                    foreach (var node in source)
+                    {
+                        // Falls Item eine Rule ist, übernehmen, aber ohne Children
+                        if (node.Item is Rule)
+                        {
+                            yield return new TreeNode<TItem>
+                            {
+                                Item = node.Item,
+                                Children = new() // explizit leer
+                            };
+                        }
+
+                        // Rekursion auf alle Children (auch Header oder Inline Layer)
+                        if (node.Children != null)
+                        {
+                            foreach (var child in FlattenRuleNodes(node.Children))
+                                yield return child;
+                        }
+                    }
+                }
+
+                var flatNodes = FlattenRuleNodes(nodes);
+
+                // Sortierfunktion je nach Spalte
+                Func<TreeNode<TItem>, object> keySelector = SortColumn switch
+                {
+                    nameof(Rule.Name)    => n => ((Rule)(object)n.Item).Name,
+                    nameof(Rule.Uid)     => n => ((Rule)(object)n.Item).Uid,
+                    nameof(Rule.Comment) => n => ((Rule)(object)n.Item).Comment,
+                    _                    => n => 0
+                };
+
+                return SortAscending
+                    ? flatNodes.OrderBy(keySelector)
+                    : flatNodes.OrderByDescending(keySelector);
+            }
+        }
+
+        return nodes;
     }
+
+
+
+
 
     /// <summary>
     /// Handles sorting logic when a column header is clicked.
@@ -222,88 +368,13 @@
         if(SortColumn == column)
         {
             SortAscending = !SortAscending; // Toggle sort direction
-            // if(SortAscending == false)
-            // {
-            //     //NoSorting = true;
-            //     SortAscending = true;
-            // }
-            // else
-            // {
-            //     SortAscending = false;
-            //     NoSorting = false;
-            // }
         }
         else
         {
             SortColumn = column;
             SortAscending = true;
-            //NoSorting = false;
         }
     }
-
-    public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes)
-    {
-        LexicographicalListComparer positionComparer = new();
-
-        // rekursive Sortierung
-        List<TreeNode<Rule>> SortLevel(List<TreeNode<Rule>> currentLevel)
-        {
-            // Header (Uid == 0) sollen oben bleiben, sortiert nach Position
-            var headerNodes = currentLevel
-                .Where(n => n.IsCollapsible)
-                .OrderBy(n => n.OrderPosition, positionComparer)
-                .ToList();
-
-            // Normale Regeln ebenfalls lexikografisch sortieren
-            var ruleNodes = currentLevel
-                .Where(n => !n.IsCollapsible)
-                .OrderBy(n => n.OrderPosition, positionComparer)
-                .ToList();
-
-            // Rekursiv Kinder sortieren
-            foreach (var node in headerNodes.Concat(ruleNodes))
-            {
-                if (node.Children?.Any() == true)
-                {
-                    node.Children = SortLevel(node.Children);
-                }
-            }
-
-            return headerNodes.Concat(ruleNodes).ToList();
-        }
-
-        return SortLevel(nodes);
-    }
-
-    @* public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes, bool ascending)
-    {
-        LexicographicalListComparer positionComparer = new();
-
-        List<TreeNode<Rule>> SortLevel(List<TreeNode<Rule>> currentLevel)
-        {
-            // Headerknoten sollen oben bleiben (Item == null oder ID == 0)
-            var headerNodes = currentLevel
-                .Where(n => n.IsCollapsible)
-                .ToList();
-
-            var dataNodes = currentLevel
-                .Where(n => !n.IsCollapsible)
-                .ToList();
-
-            var sortedDataNodes = ascending
-                ? dataNodes.OrderBy(n => n.OrderPosition, positionComparer).ToList()
-                : dataNodes.OrderByDescending(n => n.OrderPosition, positionComparer).ToList();
-
-            foreach (var node in headerNodes.Concat(sortedDataNodes))
-            {
-                node.Children = SortLevel(node.Children);
-            }
-
-            return headerNodes.Concat(sortedDataNodes).ToList();
-        }
-
-        return SortLevel(nodes);
-    } *@
 
     public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes, bool ascending)
     {
@@ -325,9 +396,6 @@
 
         return SortLevel(nodes);
     }
-
-
-
 
     /// <summary>
     /// Toggles the expanded state of a tree node.

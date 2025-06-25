@@ -9,7 +9,7 @@ namespace FWO.Data
         public long Id { get; set; }
 
         [JsonProperty("rule_uid"), JsonPropertyName("rule_uid")]
-        public string? Uid { get; set; } = "";
+        public string Uid { get; set; } = "";
 
         [JsonProperty("mgm_id"), JsonPropertyName("mgm_id")]
         public int MgmtId { get; set; }
