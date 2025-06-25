@@ -5,11 +5,13 @@ namespace FWO.Data.Report
     public class TreeNode<T>
     {
         public T? Item { get; set; }
+        public TreeItem<T>? TreeItem { get; set; }
         public bool IsExpanded { get; set; } = false;
         public List<TreeNode<T>> Children { get; set; } = [];
         public RulebaseType Type { get; set; }
         public bool IsCollapsible { get; set; } = false;
         public string Header { get; set; } = "";
+        public List<int> OrderPosition { get; set; } = new();
 
         public TreeNode()
         {

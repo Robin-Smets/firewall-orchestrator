@@ -51,7 +51,7 @@
                 <tr>
                     <TableHead Title="@(userConfig.GetText("name"))" />
 
-                    <TableHead Title="@(userConfig.GetText("number"))" />
+                    <TableHead Title="@(userConfig.GetText("number"))" OnSort="SortBy" SortContext="OrderNumber" Sortable="true" SortAscending="SortAscending"/>
                     <TableHead Title="@(userConfig.GetText("source_zone"))" Hideable="true" HideClass="text-secondary text-info-hover" />
                     <TableHead Title="@(userConfig.GetText("source"))" />
                     <TableHead Title="@(userConfig.GetText("destination_zone"))" />
@@ -192,9 +192,11 @@
             }
             else if(SortColumn == nameof(Rule.OrderNumber))
             {
-                return SortAscending
-                    ? nodes.OrderBy((TreeNode<TItem> n) => ((Rule)(object)n.Item).OrderNumber)
-                    : nodes.OrderByDescending((TreeNode<TItem> n) => ((Rule)(object)n.Item).OrderNumber);
+                var ruleNodes = nodes.Cast<TreeNode<Rule>>().ToList();
+                var result = SortTreeNodesLexicographically(ruleNodes, SortAscending)
+                            .Cast<TreeNode<TItem>>();
+                return result;
+
             }
             else if(SortColumn == nameof(Rule.Uid))
             {
@@ -238,6 +240,94 @@
             //NoSorting = false;
         }
     }
+
+    public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes)
+    {
+        LexicographicalListComparer positionComparer = new();
+
+        // rekursive Sortierung
+        List<TreeNode<Rule>> SortLevel(List<TreeNode<Rule>> currentLevel)
+        {
+            // Header (Uid == 0) sollen oben bleiben, sortiert nach Position
+            var headerNodes = currentLevel
+                .Where(n => n.IsCollapsible)
+                .OrderBy(n => n.OrderPosition, positionComparer)
+                .ToList();
+
+            // Normale Regeln ebenfalls lexikografisch sortieren
+            var ruleNodes = currentLevel
+                .Where(n => !n.IsCollapsible)
+                .OrderBy(n => n.OrderPosition, positionComparer)
+                .ToList();
+
+            // Rekursiv Kinder sortieren
+            foreach (var node in headerNodes.Concat(ruleNodes))
+            {
+                if (node.Children?.Any() == true)
+                {
+                    node.Children = SortLevel(node.Children);
+                }
+            }
+
+            return headerNodes.Concat(ruleNodes).ToList();
+        }
+
+        return SortLevel(nodes);
+    }
+
+    @* public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes, bool ascending)
+    {
+        LexicographicalListComparer positionComparer = new();
+
+        List<TreeNode<Rule>> SortLevel(List<TreeNode<Rule>> currentLevel)
+        {
+            // Headerknoten sollen oben bleiben (Item == null oder ID == 0)
+            var headerNodes = currentLevel
+                .Where(n => n.IsCollapsible)
+                .ToList();
+
+            var dataNodes = currentLevel
+                .Where(n => !n.IsCollapsible)
+                .ToList();
+
+            var sortedDataNodes = ascending
+                ? dataNodes.OrderBy(n => n.OrderPosition, positionComparer).ToList()
+                : dataNodes.OrderByDescending(n => n.OrderPosition, positionComparer).ToList();
+
+            foreach (var node in headerNodes.Concat(sortedDataNodes))
+            {
+                node.Children = SortLevel(node.Children);
+            }
+
+            return headerNodes.Concat(sortedDataNodes).ToList();
+        }
+
+        return SortLevel(nodes);
+    } *@
+
+    public static List<TreeNode<Rule>> SortTreeNodesLexicographically(List<TreeNode<Rule>> nodes, bool ascending)
+    {
+        LexicographicalListComparer positionComparer = new();
+
+        List<TreeNode<Rule>> SortLevel(List<TreeNode<Rule>> currentLevel)
+        {
+            var sortedNodes = ascending
+                ? currentLevel.OrderBy(n => n.OrderPosition, positionComparer).ToList()
+                : currentLevel.OrderByDescending(n => n.OrderPosition, positionComparer).ToList();
+
+            foreach (var node in sortedNodes)
+            {
+                node.Children = SortLevel(node.Children);
+            }
+
+            return sortedNodes;
+        }
+
+        return SortLevel(nodes);
+    }
+
+
+
 
     /// <summary>
     /// Toggles the expanded state of a tree node.

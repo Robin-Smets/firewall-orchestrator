@@ -121,7 +121,9 @@ else
         {
             Children = ruleTreeNodes,
             Header = header,
-            IsCollapsible = isCollapsible
+            IsCollapsible = isCollapsible,
+            TreeItem = item,
+            OrderPosition = item.Position.ToList()
         };
     }
 
