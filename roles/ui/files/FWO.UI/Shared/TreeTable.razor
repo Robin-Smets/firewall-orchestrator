@@ -1,8 +1,12 @@
 ﻿@using FWO.Data.Report
+@using FWO.Services.EventMediator.Events
+@using FWO.Services.EventMediator.Interfaces
 @using FWO.Ui.Display
-@inject UserConfig userConfig
 
 @typeparam TItem
+
+@inject IEventMediator _eventMediator
+@inject UserConfig userConfig
 
 <div class="tree-table-viewport" id="treeTableViewport">
     <div class="d-flex mb-2">
@@ -13,16 +17,16 @@
             <span class="oi oi-fullscreen-exit"></span>
         </button>
         <span class="pt-1">|</span>
-        <button class="btn btn-sm btn-outline-secondary mx-1">
+        <button class="btn btn-sm btn-outline-secondary mx-1" @onclick="ShowAllColumns">
             <i class="bi bi-eye-slash-fill me-1"></i>
-            99
+            @_hiddenColumnsCount
         </button>
-        <div class="d-flex border border-rounded border-1">
+        @* <div class="d-flex border border-rounded border-1">
             <button class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-eye-slash-fill me-1"></i>
                 Name
             </button>
-        </div>
+        </div> *@
         <div class="d-flex ms-auto">
             <input id="searchbar"
                    class="form-control form-control-sm"
@@ -52,7 +56,7 @@
                     <TableHead Title="@(userConfig.GetText("name"))" OnSort="SortBy" SortContext="Name" Sortable="true" SortAscending="SortAscending"/>
 
                     <TableHead Title="@(userConfig.GetText("number"))" OnSort="SortBy" SortContext="OrderNumber" Sortable="true" SortAscending="SortAscending"/>
-                    <TableHead Title="@(userConfig.GetText("source_zone"))" Hideable="true" HideClass="text-secondary text-info-hover" />
+                    <TableHead Title="@(userConfig.GetText("source_zone"))" Hideable="true" HideClass="text-secondary text-info-hover" ColumnId="RulesReportSourceZoneColumn"/>
                     <TableHead Title="@(userConfig.GetText("source"))"/>
                     <TableHead Title="@(userConfig.GetText("destination_zone"))" />
                     <TableHead Title="@(userConfig.GetText("destination"))" />
@@ -61,9 +65,9 @@
                     <TableHead Title="@(userConfig.GetText("track"))" />
                     <TableHead Title="@(userConfig.GetText("enabled"))" />
 
-                    <TableHead Title="@(userConfig.GetText("uid"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Uid" Sortable="true" SortAscending="SortAscending"/>
+                    <TableHead Title="@(userConfig.GetText("uid"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Uid" Sortable="true" SortAscending="SortAscending" ColumnId="RulesReportUidColumn"/>
 
-                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Comment" Sortable="true" SortAscending="SortAscending"/>
+                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Comment" Sortable="true" SortAscending="SortAscending" ColumnId="RulesReportCommentColumn"/>
                 </tr>
             </thead>
             <tbody>
@@ -96,12 +100,50 @@
 
     private Timer? debounceTimer;
 
+    private int _hiddenColumnsCount = 0;
+    private List<string> _hiddenColumns = new();
+
     /// <summary>
     /// Initializes the component and sets up the rule display helper.
     /// </summary>
     protected override void OnInitialized()
     {
         RuleDisplay = new NatRuleDisplayHtml(userConfig);
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportSourceZoneColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportUidColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportCommentColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+    }
+
+    private void OnTreeTableColumnChangeVisibility(TreeTableColumnChangeVisibilityEventArgs eventArgs)
+    {
+        if(eventArgs.NewVisibility == false)
+        {
+            _hiddenColumns.Add(eventArgs.ColumnId);
+            _hiddenColumnsCount = _hiddenColumns.Count;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAllColumns()
+    {
+        foreach(string columnId in _hiddenColumns.ToList())
+        {
+            ShowColumn(columnId);
+        }
+    }
+
+    private void ShowColumn(string columnId)
+    {
+        TreeTableColumnChangeVisibilityEventArgs eventArgs = new();
+        eventArgs.ColumnId = columnId;
+        eventArgs.NewVisibility = true;
+        TreeTableColumnChangeVisibilityEvent newEvent = new TreeTableColumnChangeVisibilityEvent(eventArgs);
+        newEvent.EventId = $"ShowColumnVisibilityChangedEvent";
+        
+        _eventMediator.Publish(newEvent.EventId, newEvent);
+        _hiddenColumns.Remove(eventArgs.ColumnId);
+        _hiddenColumnsCount = _hiddenColumns.Count;
+        StateHasChanged();
     }
 
     /// <summary>
@@ -138,8 +180,6 @@
             Rule? rule = node.Item as Rule;
             bool match =
                 (rule?.Name?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (rule?.Comment?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (rule?.Source?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (rule?.Destination?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false);
 
             if(match)

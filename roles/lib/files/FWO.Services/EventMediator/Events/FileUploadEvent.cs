@@ -4,6 +4,7 @@ namespace FWO.Services.EventMediator.Events
 {
     public class FileUploadEvent(FileUploadEventArgs? eventArgs = default) : IEvent
     {
+        public string EventId { get; set; } = "";
         public FileUploadEventArgs? EventArgs { get; set; } = eventArgs ?? new FileUploadEventArgs();
 
         IEventArgs? IEvent.EventArgs

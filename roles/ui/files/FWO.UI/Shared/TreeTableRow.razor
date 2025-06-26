@@ -1,8 +1,14 @@
 ﻿@using FWO.Data.Report
 @using FWO.Report
 @using FWO.Report.Data
+@using FWO.Services.EventMediator.Events
+@using FWO.Services.EventMediator.Interfaces
 @using FWO.Ui.Display
+
+
+@inject IEventMediator _eventMediator
 @inject UserConfig userConfig
+
 @typeparam TItem
 
 <tr class="@(Node.Type == RulebaseType.Section ? "section-header" : "")">
@@ -30,7 +36,12 @@
     @if(!IsSectionHeader() && RuleItem is not null)
     {
         <td>@RuleItem.DisplayOrderNumberString</td>
-        <td>@((MarkupString)RuleDisplayHtml.DisplaySourceZone(RuleItem))</td>
+
+        if(_isSourceZoneColumnVisible)
+        {
+            <td>@((MarkupString)RuleDisplayHtml.DisplaySourceZone(RuleItem))</td>
+        }
+
         <td style="min-width: 220px;">
             @((MarkupString)RuleDisplay.DisplaySource(RuleItem, OutputLocation.report, ReportType.Rules))
         </td>
@@ -44,39 +55,47 @@
         <td class="text-center">@RuleDisplayHtml.DisplayActionMarkup(RuleItem)</td>
         <td class="text-center">@RuleDisplayHtml.DisplayLogMarkup(RuleItem)</td>
         <td class="text-center @GetRuleDisabledClass(RuleItem.Disabled)">@((MarkupString)RuleDisplayHtml.DisplayEnabled(RuleItem, OutputLocation.report))</td>
-        <td title="@RuleItem.Uid" class="cursor-pointer text-center" style="min-width: 135px;" @onclick="ToggleUid">
-            @if(ShowFullUid)
-            {
-                <span>
-                    @RuleItem.Uid
-                </span>
-            }
-            else
-            {
-                @TruncateColumnUIDText(RuleItem.Uid)
-                <span class="oi oi-eye text-secondary text-info-hover ms-1"></span>
-            }
-        </td>
-        <td title="@RuleItem.Comment" class="cursor-pointer text-center" style="min-width: 160px;" @onclick="ToggleComment">
-            @if (string.IsNullOrWhiteSpace(RuleItem.Comment))
-            {
-                <i class="bi bi-dash-lg"></i>
-            }
-            else
-            {
-                @if(ShowFullComment)
+        if(_isUidColumnVisible)
+        {
+            <td title="@RuleItem.Uid" class="cursor-pointer text-center" style="min-width: 135px;" @onclick="ToggleUid">
+                @if(ShowFullUid)
                 {
                     <span>
-                        @RuleItem.Comment
+                        @RuleItem.Uid
                     </span>
                 }
                 else
                 {
-                    @TruncateColumnText(RuleItem.Comment, CommentTruncateLength)
+                    @TruncateColumnUIDText(RuleItem.Uid)
                     <span class="oi oi-eye text-secondary text-info-hover ms-1"></span>
                 }
-            }
-        </td>        
+            </td>            
+        }
+
+        if(_isCommentColumnVisible)
+        {
+            <td title="@RuleItem.Comment" class="cursor-pointer text-center" style="min-width: 160px;" @onclick="ToggleComment">
+                @if (string.IsNullOrWhiteSpace(RuleItem.Comment))
+                {
+                    <i class="bi bi-dash-lg"></i>
+                }
+                else
+                {
+                    @if(ShowFullComment)
+                    {
+                        <span>
+                            @RuleItem.Comment
+                        </span>
+                    }
+                    else
+                    {
+                        @TruncateColumnText(RuleItem.Comment, CommentTruncateLength)
+                        <span class="oi oi-eye text-secondary text-info-hover ms-1"></span>
+                    }
+                }
+            </td>                
+        }
+
     }
 </tr>
 
@@ -110,6 +129,37 @@
     private bool ShowFullUid = false;
     private bool ShowFullComment = false;
     private int CommentTruncateLength = 10;
+
+    private bool _isSourceZoneColumnVisible = true;
+    private bool _isUidColumnVisible = true;
+    private bool _isCommentColumnVisible = true;
+
+    protected override void OnInitialized()
+    {
+        
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportSourceZoneColumnVisibilityChangedEvent", e => _isSourceZoneColumnVisible = (e.EventArgs as TreeTableColumnChangeVisibilityEventArgs).NewVisibility);
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportUidColumnVisibilityChangedEvent", e => _isUidColumnVisible = (e.EventArgs as TreeTableColumnChangeVisibilityEventArgs).NewVisibility);
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportCommentColumnVisibilityChangedEvent", e => _isCommentColumnVisible = (e.EventArgs as TreeTableColumnChangeVisibilityEventArgs).NewVisibility);
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("ShowColumnVisibilityChangedEvent", e => OnShowColumnVisibilityChangedEvent(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+    }
+
+    private void OnShowColumnVisibilityChangedEvent(TreeTableColumnChangeVisibilityEventArgs eventArgs)
+    {
+        switch (eventArgs.ColumnId)
+        {
+            case "RulesReportSourceZoneColumn":
+                _isSourceZoneColumnVisible = true;
+                break;
+            
+            case "RulesReportUidColumn":
+                _isUidColumnVisible = true;
+                break;
+
+            case "RulesReportCommentColumn":
+                _isCommentColumnVisible = true;
+                break;
+        }
+    }
 
     private string GetColumnSpan()
     {

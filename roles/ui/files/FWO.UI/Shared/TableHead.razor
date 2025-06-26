@@ -1,4 +1,9 @@
-﻿@if(!Hidden)
+﻿@using FWO.Services.EventMediator.Events
+@using FWO.Services.EventMediator.Interfaces
+
+@inject IEventMediator _eventMediator
+
+@if(Visible)
 {
     <th class="@HeadClass">
         <div class="d-inline-flex align-items-center">
@@ -21,6 +26,9 @@
 @code {
     [Parameter, EditorRequired]
     public required string Title { get; set; }
+
+    [Parameter]
+    public string ColumnId { get; set; } = "";
 
     [Parameter]
     public string? HeadClass { get; set; }
@@ -46,7 +54,7 @@
     [Parameter]
     public string? SortContext { get; set; }
 
-    public bool Hidden { get; set; } = false;
+    public bool Visible { get; set; } = true;
 
     protected override void OnInitialized()
     {
@@ -57,6 +65,17 @@
             throw new InvalidOperationException($"{nameof(TableHead)}({Title}): " +
             $"{nameof(Sortable)} is {Sortable}, but {nameof(OnSort)} EventCallback is {OnSort.HasDelegate} and {nameof(SortContext)} is {SortContext}.\n" +
             $"If {nameof(Sortable)} is 'True', then {nameof(OnSort)} EvenCallback and {nameof(SortContext)} has to be set!");
+        }
+
+        _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("ShowColumnVisibilityChangedEvent", e => OnShowColumnVisibilityChangedEvent(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+    }
+
+    private void OnShowColumnVisibilityChangedEvent(TreeTableColumnChangeVisibilityEventArgs eventArgs)
+    {
+        if(eventArgs.ColumnId == ColumnId)
+        {
+            Visible = true;
+            StateHasChanged();
         }
     }
 
@@ -73,6 +92,14 @@
 
     private void OnHideClick()
     {
-        Hidden = true;
+        Visible = false;
+
+        TreeTableColumnChangeVisibilityEventArgs eventArgs = new();
+        eventArgs.ColumnId = ColumnId;
+        eventArgs.NewVisibility = Visible;
+        TreeTableColumnChangeVisibilityEvent newEvent = new TreeTableColumnChangeVisibilityEvent(eventArgs);
+        newEvent.EventId = $"{ColumnId}VisibilityChangedEvent";
+        
+        _eventMediator.Publish(newEvent.EventId, newEvent);
     }
 }
