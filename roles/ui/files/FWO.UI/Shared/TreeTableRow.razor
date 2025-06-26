@@ -14,7 +14,7 @@
 <tr class="@(Node.Type == RulebaseType.Section ? "section-header" : "")">
     <td class="tree-cell" colspan="@GetColumnSpan()">
         <span class="tree-indent" style="width:@(Level * 1.5)rem;"></span>
-        @if(Node.Children.Any())
+        @if(Node.IsCollapsible)
         {
             <button class="btn btn-sm toggle-btn p-2 mx-1" @onclick="() => OnToggle(Node)">
                 @if(Node.IsExpanded)
@@ -26,12 +26,16 @@
                     <span class="oi oi-caret-right"></span>
                 }
             </button>
+            @Node.Header
         }
         else
         {
             <span class="indent-placeholder"></span>
+            @if(Node.Item is Rule rule)
+            {
+                @rule.Name
+            }
         }
-        @Node.Header
     </td>
     @if(!IsSectionHeader() && RuleItem is not null)
     {
