@@ -5,7 +5,20 @@
 
 @if(Visible)
 {
-    <th class="@HeadClass">
+    <script>
+            window.setDragData = (columnId) => {
+        document.addEventListener("dragstart", function (event) {
+            if (event.target.id === columnId) {
+                event.dataTransfer.setData("text/plain", columnId);
+            }
+        }, { once: true });
+    }
+    </script>
+<th id="@ColumnId" @ref="_thRef" class="@HeadClass" draggable="@Draggable.ToString().ToLower()"
+    ondragover="event.preventDefault();"
+    @ondragstart="@((DragEventArgs e) => OnDrag(e))"
+    @ondrop="OnDrop">
+
         <div class="d-inline-flex align-items-center">
             @Title
 
@@ -21,6 +34,8 @@
             </div>
         </div>
     </th>
+
+
 }
 
 @code {
@@ -55,6 +70,12 @@
     public string? SortContext { get; set; }
 
     public bool Visible { get; set; } = true;
+
+    public bool Draggable { get; set; } = true;
+
+    private string _draggedColumnId;
+
+    private ElementReference _thRef;
 
     protected override void OnInitialized()
     {
@@ -102,4 +123,34 @@
         
         _eventMediator.Publish(newEvent.EventId, newEvent);
     }
+
+
+    private async Task OnDrag(DragEventArgs e)
+    {
+        string targetColumnId = await JS.InvokeAsync<string>("getElementId", _thRef);
+        _ = JS.InvokeVoidAsync("setDragData", ColumnId);
+        TreeTableHeaderDraggedEventArgs eventArgs = new();
+        eventArgs.DraggedColumnId = ColumnId;
+        eventArgs.TargetColumnId = targetColumnId;
+        TreeTableHeaderDraggedEvent newEvent = new TreeTableHeaderDraggedEvent(eventArgs);
+        newEvent.EventId = $"RulesReportColumnDraggedEvent";
+        
+        _eventMediator.Publish(newEvent.EventId, newEvent);
+    }
+
+    private async Task OnDrop(DragEventArgs e)
+    {
+        string targetColumnId = await JS.InvokeAsync<string>("getElementId", _thRef);
+
+        TreeTableHeaderDraggedEventArgs eventArgs = new();
+        eventArgs.DraggedColumnId = ColumnId;
+        eventArgs.TargetColumnId = targetColumnId;
+        TreeTableHeaderDraggedEvent newEvent = new TreeTableHeaderDraggedEvent(eventArgs);
+        newEvent.EventId = $"RulesReportColumnDroppedEvent";
+        
+        _eventMediator.Publish(newEvent.EventId, newEvent);
+    }
+
+    [Inject]
+    private IJSRuntime JS { get; set; }
 }

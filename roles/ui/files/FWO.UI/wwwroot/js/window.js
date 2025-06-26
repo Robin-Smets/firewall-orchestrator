@@ -27,3 +27,7 @@ function setProperty(element, property, value) {
         element[property] = value;
     }
 }
+
+function getElementId(element){
+    return element.id;
+}

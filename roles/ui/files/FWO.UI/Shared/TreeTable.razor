@@ -1,4 +1,6 @@
-﻿@using FWO.Data.Report
+﻿
+@using Microsoft.AspNetCore.Components.Rendering
+@using FWO.Data.Report
 @using FWO.Services.EventMediator.Events
 @using FWO.Services.EventMediator.Interfaces
 @using FWO.Ui.Display
@@ -53,7 +55,7 @@
         <table class="tree-table">
             <thead>
                 <tr>
-                    <TableHead Title="@(userConfig.GetText("name"))" OnSort="SortBy" SortContext="Name" Sortable="true" SortAscending="SortAscending"/>
+                    @* <TableHead Title="@(userConfig.GetText("name"))" OnSort="SortBy" SortContext="Name" Sortable="true" SortAscending="SortAscending"/>
 
                     <TableHead Title="@(userConfig.GetText("number"))" OnSort="SortBy" SortContext="OrderNumber" Sortable="true" SortAscending="SortAscending"/>
                     <TableHead Title="@(userConfig.GetText("source_zone"))" Hideable="true" HideClass="text-secondary text-info-hover" ColumnId="RulesReportSourceZoneColumn"/>
@@ -67,7 +69,11 @@
 
                     <TableHead Title="@(userConfig.GetText("uid"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Uid" Sortable="true" SortAscending="SortAscending" ColumnId="RulesReportUidColumn"/>
 
-                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Comment" Sortable="true" SortAscending="SortAscending" ColumnId="RulesReportCommentColumn"/>
+                    <TableHead Title="@(userConfig.GetText("comment"))" Hideable="true" HideClass="text-secondary text-info-hover" OnSort="SortBy" SortContext="Comment" Sortable="true" SortAscending="SortAscending" ColumnId="RulesReportCommentColumn"/> *@
+                    @foreach (var head in TableHeads)
+                    {
+                        @head
+                    }
                 </tr>
             </thead>
             <tbody>
@@ -84,6 +90,267 @@
 </div>
 
 @code {
+
+    public class ComponentBuilder
+    {
+        private readonly RenderTreeBuilder builder;
+
+        public ComponentBuilder(RenderTreeBuilder builder)
+        {
+            this.builder = builder;
+        }
+
+        public void Add(string name, object? value)
+        {
+            builder.AddAttribute(0, name, value);
+        }
+    }
+
+    private Dictionary<string, RenderFragment> columnById = new();
+
+
+    private RenderFragment Head(Action<ComponentBuilder> config)
+    {
+        return builder =>
+        {
+            builder.OpenComponent<TableHead>(0);
+            var cb = new ComponentBuilder(builder);
+            config(cb);
+            builder.CloseComponent();
+        };
+    }
+
+    @* private List<RenderFragment> TableHeads => new()
+    {
+        Head(c =>
+        {
+            c.Add("Title", userConfig.GetText("name"));
+            c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+            c.Add("SortContext", "Name");
+            c.Add("Sortable", true);
+            c.Add("SortAscending", SortAscending);
+        }),
+        Head(c =>
+        {
+            c.Add("Title", userConfig.GetText("number"));
+            c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+            c.Add("SortContext", "OrderNumber");
+            c.Add("Sortable", true);
+            c.Add("SortAscending", SortAscending);
+        }),
+        Head(c =>
+        {
+            c.Add("Title", userConfig.GetText("source_zone"));
+            c.Add("Hideable", true);
+            c.Add("HideClass", "text-secondary text-info-hover");
+            c.Add("ColumnId", "RulesReportSourceZoneColumn");
+        }),
+        Head(c => c.Add("Title", userConfig.GetText("source"))),
+        Head(c => c.Add("Title", userConfig.GetText("destination_zone"))),
+        Head(c => c.Add("Title", userConfig.GetText("destination"))),
+        Head(c => c.Add("Title", userConfig.GetText("services"))),
+        Head(c => c.Add("Title", userConfig.GetText("action"))),
+        Head(c => c.Add("Title", userConfig.GetText("track"))),
+        Head(c => c.Add("Title", userConfig.GetText("enabled"))),
+        Head(c =>
+        {
+            c.Add("Title", userConfig.GetText("uid"));
+            c.Add("Hideable", true);
+            c.Add("HideClass", "text-secondary text-info-hover");
+            c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+            c.Add("SortContext", "Uid");
+            c.Add("Sortable", true);
+            c.Add("SortAscending", SortAscending);
+            c.Add("ColumnId", "RulesReportUidColumn");
+        }),
+        Head(c =>
+        {
+            c.Add("Title", userConfig.GetText("comment"));
+            c.Add("Hideable", true);
+            c.Add("HideClass", "text-secondary text-info-hover");
+            c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+            c.Add("SortContext", "Comment");
+            c.Add("Sortable", true);
+            c.Add("SortAscending", SortAscending);
+            c.Add("ColumnId", "RulesReportCommentColumn");
+        })
+    }; *@
+        private List<RenderFragment>? TableHeads;
+
+        @* private List<RenderFragment> CreateTableHeads()
+        {
+            List<RenderFragment> tableHeads = new()
+            {
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("name"));
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Name");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                }),
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("number"));
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "OrderNumber");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                }),
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("source_zone"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                    c.Add("ColumnId", "RulesReportSourceZoneColumn");
+                }),
+                Head(c => c.Add("Title", userConfig.GetText("source"))),
+                Head(c => c.Add("Title", userConfig.GetText("destination_zone"))),
+                Head(c => c.Add("Title", userConfig.GetText("destination"))),
+                Head(c => c.Add("Title", userConfig.GetText("services"))),
+                Head(c => c.Add("Title", userConfig.GetText("action"))),
+                Head(c => c.Add("Title", userConfig.GetText("track"))),
+                Head(c => c.Add("Title", userConfig.GetText("enabled"))),
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("uid"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Uid");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                    c.Add("ColumnId", "RulesReportUidColumn");
+                }),
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("comment"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Comment");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                    c.Add("ColumnId", "RulesReportCommentColumn");
+                })
+            };
+
+            return tableHeads;        
+        } *@
+
+
+        private List<RenderFragment> CreateTableHeads()
+        {
+            columnById = new(); // neu aufbauen
+
+            List<RenderFragment> tableHeads = new()
+            {
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("name"));
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Name");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                }),
+                Head(c =>
+                {
+                    c.Add("Title", userConfig.GetText("number"));
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "OrderNumber");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                }),
+                AddHeadWithId("RulesReportSourceZoneColumn", c =>
+                {
+                    c.Add("Title", userConfig.GetText("source_zone"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                }),
+                Head(c => c.Add("Title", userConfig.GetText("source"))),
+                Head(c => c.Add("Title", userConfig.GetText("destination_zone"))),
+                Head(c => c.Add("Title", userConfig.GetText("destination"))),
+                Head(c => c.Add("Title", userConfig.GetText("services"))),
+                Head(c => c.Add("Title", userConfig.GetText("action"))),
+                Head(c => c.Add("Title", userConfig.GetText("track"))),
+                Head(c => c.Add("Title", userConfig.GetText("enabled"))),
+                AddHeadWithId("RulesReportUidColumn", c =>
+                {
+                    c.Add("Title", userConfig.GetText("uid"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Uid");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                }),
+                AddHeadWithId("RulesReportCommentColumn", c =>
+                {
+                    c.Add("Title", userConfig.GetText("comment"));
+                    c.Add("Hideable", true);
+                    c.Add("HideClass", "text-secondary text-info-hover");
+                    c.Add("OnSort", EventCallback.Factory.Create<string>(this, SortBy));
+                    c.Add("SortContext", "Comment");
+                    c.Add("Sortable", true);
+                    c.Add("SortAscending", SortAscending);
+                })
+            };
+
+            return tableHeads;
+        }
+
+        private RenderFragment AddHeadWithId(string columnId, Action<dynamic> configure)
+        {
+            var fragment = Head(c =>
+            {
+                configure(c);
+                c.Add("ColumnId", columnId);
+            });
+
+            columnById[columnId] = fragment;
+            return fragment;
+        }
+
+
+
+        public static void MoveColumnBehind(
+            List<RenderFragment> columns,
+            Dictionary<string, RenderFragment> columnById,
+            string moveColumnId,
+            string targetColumnId)
+        {
+            if (!columnById.TryGetValue(moveColumnId, out var toMove) ||
+                !columnById.TryGetValue(targetColumnId, out var target))
+            {
+                return; // Spalten nicht gefunden → keine Änderung
+            }
+
+            // Aktuelle Positionen ermitteln
+            int currentIndex = columns.IndexOf(toMove);
+            int targetIndex = columns.IndexOf(target);
+
+            if (currentIndex == -1 || targetIndex == -1 || currentIndex == targetIndex)
+                return; // Ungültige Indizes oder kein echter Positionswechsel
+
+            // Entferne das Element aus der aktuellen Position
+            columns.RemoveAt(currentIndex);
+
+            // Wenn wir ein Element weiter oben verschieben, verringert sich der Zielindex
+            if (currentIndex < targetIndex)
+                targetIndex--;
+
+            // Einfügen hinter dem Ziel
+            columns.Insert(targetIndex + 1, toMove);
+        }
+
+
+
+
+
+
+
+
+
     [Parameter, EditorRequired]
     public required List<TreeNode<TItem>> Nodes { get; set; } = new();
 
@@ -103,6 +370,8 @@
     private int _hiddenColumnsCount = 0;
     private List<string> _hiddenColumns = new();
 
+    private string _draggedColumnId;
+
     /// <summary>
     /// Initializes the component and sets up the rule display helper.
     /// </summary>
@@ -112,6 +381,10 @@
         _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportSourceZoneColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
         _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportUidColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
         _eventMediator.Subscribe<TreeTableColumnChangeVisibilityEvent>("RulesReportCommentColumnVisibilityChangedEvent", e => OnTreeTableColumnChangeVisibility(e.EventArgs as TreeTableColumnChangeVisibilityEventArgs));
+        _eventMediator.Subscribe<TreeTableHeaderDraggedEvent>("RulesReportColumnDraggedEvent", e => OnColumnDragged(e.EventArgs as TreeTableHeaderDraggedEventArgs));
+        _eventMediator.Subscribe<TreeTableHeaderDraggedEvent>("RulesReportColumnDroppedEvent", e => OnColumnDropped(e.EventArgs as TreeTableHeaderDraggedEventArgs));
+
+        TableHeads = CreateTableHeads();
     }
 
     private void OnTreeTableColumnChangeVisibility(TreeTableColumnChangeVisibilityEventArgs eventArgs)
@@ -122,6 +395,17 @@
             _hiddenColumnsCount = _hiddenColumns.Count;
             StateHasChanged();
         }
+    }
+
+    private void OnColumnDragged(TreeTableHeaderDraggedEventArgs eventArgs)
+    {
+        _draggedColumnId = eventArgs.DraggedColumnId;
+    }
+
+    private void OnColumnDropped(TreeTableHeaderDraggedEventArgs eventArgs)
+    {
+        MoveColumnBehind(TableHeads, columnById, _draggedColumnId, eventArgs.TargetColumnId);
+        StateHasChanged();
     }
 
     private void ShowAllColumns()

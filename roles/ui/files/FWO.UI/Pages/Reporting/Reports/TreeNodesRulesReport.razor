@@ -90,11 +90,6 @@ else
         }
     }
 
-    public void Dispose()
-    {
-        EventMediator.Unsubscribe<ReportGenerationEvent>(nameof(ReportGenerationEvent));
-    }
-
     public static List<TreeNode<Rule>> ConvertToTreeNodes(List<RuleTreeItem> items)
     {
         return items.Select(ToTreeNode).ToList();
@@ -127,5 +122,8 @@ else
         };
     }
 
-
+    public void Dispose()
+    {
+        EventMediator.Unsubscribe<ReportGenerationEvent>(nameof(ReportGenerationEvent));
+    }
 }
