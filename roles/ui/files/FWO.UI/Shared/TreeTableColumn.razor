@@ -1,0 +1,18 @@
+@inherits LayoutComponentBase
+
+@if (Visible)
+{
+    <td id="@Id" class="@CssClass" style="@Style" title="@Title" @onclick="OnClick">
+        @ChildContent
+    </td>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [Parameter] public bool Visible { get; set; } = true;
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
