@@ -157,12 +157,12 @@ namespace FWO.Compliance
             {
                 Log.TryWriteLog(LogType.Info, "Compliance Check", "Persisting violations...", _debugConfig.ExtendedLogComplianceCheck);
 
-                List<ComplianceViolation> existingViolations = await _apiConnection.SendQueryAsync<List<ComplianceViolation>>(ComplianceQueries.getViolations);
+                List<ComplianceViolation> violationsInDb = await _apiConnection.SendQueryAsync<List<ComplianceViolation>>(ComplianceQueries.getViolations);
 
-                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Found {existingViolations.Count} existing violations", _debugConfig.ExtendedLogComplianceCheck);
+                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Found {violationsInDb.Count} rows in violations db table.", _debugConfig.ExtendedLogComplianceCheck);
 
-                List<ComplianceViolationBase> violations = await CreateViolationInsertObjectsAsync(existingViolations);
-                Task<List<int>> violationsForRemoveTask = GetViolationsForRemoveAsync(existingViolations);
+                List<ComplianceViolation> violations = await CreateViolationInsertObjectsAsync(violationsInDb);
+                Task<List<int>> violationsForRemoveTask = GetViolationsForRemoveAsync(violationsInDb);
 
 
                 if (violations.Count == 0)
@@ -212,28 +212,28 @@ namespace FWO.Compliance
             }            
         }
 
-        private async Task<List<ComplianceViolationBase>> CreateViolationInsertObjectsAsync(List<ComplianceViolation> existingViolations)
+        private async Task<List<ComplianceViolation>> CreateViolationInsertObjectsAsync(List<ComplianceViolation> violationsInDb)
         {
-            List<ComplianceViolationBase> violationsForInsert = [];
+            List<ComplianceViolation> violationsForInsert = [];
 
             if (ComplianceReport is ReportCompliance complianceReport)
             {
-                List<ComplianceViolation> unremovedViolations = existingViolations
+                List<ComplianceViolation> currentViolations = violationsInDb
                     .Where(ev => ev.RemovedDate == null)
                     .ToList();
 
-                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Found {unremovedViolations.Count} unremoved existing violations", _debugConfig.ExtendedLogComplianceCheck);
+                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Found {currentViolations.Count} current (i.e. removed_date == null) violations.", _debugConfig.ExtendedLogComplianceCheck);
 
-                HashSet<string> existingKeys = existingViolations
+                HashSet<string> violationKeys = currentViolations
                     .Select(ev => $"{ev.RuleId}_{ev.PolicyId}_{ev.CriterionId}_{ev.Details}")
                     .ToHashSet();
 
-                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Found {existingKeys.Count} unique existing violation keys", _debugConfig.ExtendedLogComplianceCheck);
+                Log.TryWriteLog(LogType.Info, "Compliance Check", $"Created {currentViolations.Count} unique keys for current violations.", _debugConfig.ExtendedLogComplianceCheck);
 
                 violationsForInsert = complianceReport
                     .Violations
-                    .Where(v => !existingKeys.Contains($"{v.RuleId}_{v.PolicyId}_{v.CriterionId}_{v.Details}"))
-                    .Select(v => new ComplianceViolationBase
+                    .Where(v => !violationKeys.Contains($"{v.RuleId}_{v.PolicyId}_{v.CriterionId}_{v.Details}"))
+                    .Select(v => new ComplianceViolation
                     {
                         RuleId = v.RuleId,
                         Details = v.Details,
@@ -267,7 +267,10 @@ namespace FWO.Compliance
                                                                 
                     if (validatedViolation == null)
                     {
-                        violationsForUpdate.Add(existingViolation.Id);
+                        if (existingViolation.Id is int id)
+                        {
+                            violationsForUpdate.Add(id);
+                        }
                     }
                 }
             }
