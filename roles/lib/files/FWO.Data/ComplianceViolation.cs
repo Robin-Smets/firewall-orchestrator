@@ -7,6 +7,7 @@ namespace FWO.Data
     public class ComplianceViolation : IComplianceViolation
     {
         [JsonProperty("id"), JsonPropertyName("id")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? Id { get; set; }
 
         [JsonProperty("rule_id"), JsonPropertyName("rule_id")]
