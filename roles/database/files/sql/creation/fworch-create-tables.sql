@@ -1472,7 +1472,8 @@ create table compliance.violation
 	details TEXT,
 	risk_score real,
 	policy_id INT NOT NULL,
-	criterion_id INT NOT NULL
+	criterion_id INT NOT NULL,
+	from_initial_import BOOLEAN
 );
 
 -- create table compliance.assessability_issue

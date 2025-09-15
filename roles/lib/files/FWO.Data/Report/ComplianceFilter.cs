@@ -11,6 +11,8 @@ namespace FWO.Data.Report
         public int DiffReferenceInDays { get; set; } = 0;
         [JsonProperty("show_compliant_rules"), JsonPropertyName("show_compliant_rules")]
         public bool ShowCompliantRules { get; set; } = false;
+        [JsonProperty("show_violations_of_initial_import"), JsonPropertyName("show_violations_of_initial_import")]
+        public bool ShowViolationsOfInitialImport { get; set; } = false;
 
         public ComplianceFilter()
         {
@@ -22,6 +24,7 @@ namespace FWO.Data.Report
             IsDiffReport = complianceFilter.IsDiffReport;
             DiffReferenceInDays = complianceFilter.DiffReferenceInDays;
             ShowCompliantRules = complianceFilter.ShowCompliantRules;
+            ShowViolationsOfInitialImport = complianceFilter.ShowViolationsOfInitialImport;
         }
     }
 

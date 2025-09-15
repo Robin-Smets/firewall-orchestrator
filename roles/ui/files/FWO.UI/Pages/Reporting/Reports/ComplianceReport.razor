@@ -1,5 +1,6 @@
 @using FWO.Report
 @using FWO.Report.Data.ViewData
+@using FWO.Report.Filter.FilterTypes
 @using FWO.Ui.Display
 
 @inject UserConfig userConfig
@@ -215,6 +216,9 @@
     [Parameter]
     public bool ShowAnyRule { get; set; }
 
+    [Parameter]
+    public ReportFilters? ReportFilters { get; set; }
+
     private ITable<RuleViewData>? _reportTable;
 
     private RuleViewData[] _reportRules = [];
@@ -270,6 +274,13 @@
         if(reportData != null)
         {
             ReportData = reportData;
+        }
+
+        IEnumerable<Basics.Interfaces.IRuleViewData> ruleViewData = ReportData.RuleViewData;
+
+        if(ReportFilters!.ComplianceFilter.ShowViolationsOfInitialImport)
+        {
+            
         }
         
         _allRules = ReportData.RuleViewData.Cast<RuleViewData>().ToArray();

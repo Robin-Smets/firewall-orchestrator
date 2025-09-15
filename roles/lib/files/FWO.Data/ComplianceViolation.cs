@@ -53,5 +53,7 @@ namespace FWO.Data
         public int PolicyId { get; set; }
         [JsonProperty("criterion_id"), JsonPropertyName("criterion_id")]
         public int CriterionId { get; set; }
+        [JsonProperty("from_initial_import"), JsonPropertyName("from_initial_import")]
+        public int FromInitialImport { get; set; }
     }
 }

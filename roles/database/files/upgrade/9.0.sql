@@ -1174,6 +1174,10 @@ ON CONFLICT (config_key, config_user) DO NOTHING;
 ALTER TABLE compliance.violation ADD COLUMN IF NOT EXISTS rule_uid TEXT;
 ALTER TABLE compliance.violation ADD COLUMN IF NOT EXISTS mgmt_uid TEXT;
 
+-- add from_initial_import to table violation
+
+ALTER TABLE compliance.violation ADD COLUMN IF NOT EXISTS from_initial_import BOOLEAN;
+
 -- add assessability issue
 
 -- create table if not exists compliance.assessability_issue
@@ -1237,7 +1241,8 @@ INSERT INTO "report_template" ("report_filter","report_template_name","report_te
             "compliance_filter": {
                 "is_diff_report": false,
                 "diff_reference_in_days": 0,
-                "show_compliant_rules": true}}')
+                "show_compliant_rules": true}},
+                "show_violations_of_initial_import: true')
 ON CONFLICT (report_template_name) DO NOTHING;
 
 -- add new report template for compliance: diffs
@@ -1261,7 +1266,8 @@ INSERT INTO "report_template" ("report_filter","report_template_name","report_te
             "compliance_filter": {
                 "is_diff_report": true,
                 "diff_reference_in_days": 7,
-                "show_compliant_rules": false}}')
+                "show_compliant_rules": false,
+                "show_violations_of_initial_import: false}}')
 ON CONFLICT (report_template_name) DO NOTHING;
 
 -- add parameter to limit number of printed violations in compliance report to config

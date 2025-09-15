@@ -29,7 +29,8 @@ namespace FWO.Report
         public List<ComplianceViolation> Violations { get; set; } = [];
         public int DiffReferenceInDays { get; set; } = 0;
         public bool ShowAllRules { get; set; }
-        public List<Management>? Managements  { get; set; }
+        public bool ShowViolationsOfInitialImport { get; set; }
+        public List<Management>? Managements { get; set; }
 
         #endregion
 
@@ -126,6 +127,7 @@ namespace FWO.Report
             IsDiffReport = reportParams.ComplianceFilter.IsDiffReport;
             DiffReferenceInDays = reportParams.ComplianceFilter.DiffReferenceInDays;
             ShowAllRules = reportParams.ComplianceFilter.ShowCompliantRules;
+            ShowViolationsOfInitialImport = reportParams.ComplianceFilter.ShowViolationsOfInitialImport;
         }
 
 
@@ -373,7 +375,15 @@ namespace FWO.Report
                             networkObjects[rule] = GetAllNetworkObjectsFromRule(rule);
                             (bool isAssessable, string violationDetails) checkAssessabilityResult = await CheckAssessability(rule, networkObjects[rule]);
                             ComplianceViolationType complianceViolationType = checkAssessabilityResult.isAssessable ? rule.Compliance : ComplianceViolationType.NotAssessable;
-                            RuleViewData ruleViewData = new RuleViewData(rule, _natRuleDisplayHtml, OutputLocation.report, ShowRule(rule), _devices ?? [], Managements ?? [], complianceViolationType);
+
+                            bool isViolationOfInitialImport = false;
+
+                            if (IsDiffReport)
+                            {
+                                
+                            }
+
+                            RuleViewData ruleViewData = new RuleViewData(rule, _natRuleDisplayHtml, OutputLocation.report, ShowRule(rule), _devices ?? [], Managements ?? [], complianceViolationType, isViolationOfInitialImport);
 
                             if (!checkAssessabilityResult.isAssessable )
                             {
@@ -409,6 +419,8 @@ namespace FWO.Report
         #endregion
 
         #region Methods - Private
+
+        private async Task<bool> CheckIs
 
         private Task<List<Rule>> GatherReportData((List<Rule> processed, List<RuleViewData> viewData, Dictionary<Rule, List<NetworkObject>> networkObjects)[]? results)
         {
