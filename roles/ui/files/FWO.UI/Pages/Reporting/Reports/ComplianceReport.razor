@@ -1,6 +1,9 @@
+@using BlazorTable.Components.ServerSide
+@using BlazorTable.Interfaces
 @using FWO.Report
 @using FWO.Report.Data.ViewData
 @using FWO.Ui.Display
+@attribute [StreamRendering]
 
 @inject UserConfig userConfig
 
@@ -10,9 +13,10 @@
         style="font-size:small" 
         TableClass="table table-bordered table-sm th-bg-secondary table-responsive overflow-auto sticky-header" 
         TableItem="RuleViewData" 
-        Items="_reportRules" 
+        Items="_pagedRules"
+        DataLoader="_dataLoader"
         ShowSearchBar="false"
-        PageSize="RulesPerPage" 
+        PageSize="EffectiveRulesPerPage" 
         ColumnReorder="true" 
         TableRowClass="@(rule => getTableRowClasses(rule))"
         @ref="_reportTable">
@@ -257,6 +261,11 @@
     private RuleViewData[] _reportRules = [];
     private RuleViewData[] _visibleRules = [];
     private RuleViewData[] _allRules = [];
+    private IEnumerable<RuleViewData> _pagedRules = [];
+    private readonly ComplianceReportDataLoader _dataLoader = new();
+
+    private const int DefaultRulesPerPage = 50;
+    private bool _lastShowAnyRule;
 
     private const int ColumnsCount = 20;
     private bool[] EmptyColumns = new bool[ColumnsCount];
@@ -267,6 +276,14 @@
     {
         ruleDisplay = new NatRuleDisplayHtml(userConfig);
         UpdateRuleViewData();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (ShowAnyRule != _lastShowAnyRule)
+        {
+            UpdateVisibleRules();
+        }
     }
 
     private async Task OnRowSelected(RuleViewData rule)
@@ -317,6 +334,7 @@
 
     public void UpdateVisibleRules()
     {
+        _lastShowAnyRule = ShowAnyRule;
         if (ShowAnyRule)
         {
             _reportRules = _allRules;
@@ -324,6 +342,100 @@
         else
         {
             _reportRules = _visibleRules;
+        }
+
+        _dataLoader.SetRules(_reportRules);
+        _ = InvokeAsync(async () =>
+        {
+            if (_reportTable != null)
+            {
+                await _reportTable.FirstPageAsync();
+            }
+        });
+    }
+
+    private int EffectiveRulesPerPage => RulesPerPage > 0 ? RulesPerPage : DefaultRulesPerPage;
+
+    private sealed class ComplianceReportDataLoader : IDataLoader<RuleViewData>
+    {
+        private IReadOnlyList<RuleViewData> _rules = Array.Empty<RuleViewData>();
+
+        public void SetRules(IReadOnlyList<RuleViewData> rules)
+        {
+            _rules = rules;
+        }
+
+        public Task<PaginationResult<RuleViewData>> LoadDataAsync(FilterData? parameters)
+        {
+            IQueryable<RuleViewData> query = _rules.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(parameters?.Query))
+            {
+                string search = parameters.Query.Trim();
+                query = query.Where(rule => MatchesSearch(rule, search));
+            }
+
+            if (!string.IsNullOrWhiteSpace(parameters?.OrderBy))
+            {
+                var orderBy = parameters.OrderBy.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (orderBy.Length > 0)
+                {
+                    string propertyName = orderBy[0];
+                    bool sortDescending = orderBy.Length > 1 && orderBy[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+                    var property = typeof(RuleViewData).GetProperty(propertyName);
+                    if (property != null)
+                    {
+                        query = sortDescending
+                            ? query.OrderByDescending(item => property.GetValue(item, null))
+                            : query.OrderBy(item => property.GetValue(item, null));
+                    }
+                }
+            }
+
+            int total = query.Count();
+            if (parameters?.Top is > 0)
+            {
+                query = query
+                    .Skip(parameters.Skip.GetValueOrDefault())
+                    .Take(parameters.Top.Value);
+            }
+
+            return Task.FromResult(new PaginationResult<RuleViewData>
+            {
+                Records = query.ToArray(),
+                Skip = parameters?.Skip ?? 0,
+                Top = parameters?.Top ?? 0,
+                Total = total
+            });
+        }
+
+        private static bool MatchesSearch(RuleViewData rule, string search)
+        {
+            return ContainsText(rule.MgmtId, search)
+                || ContainsText(rule.MgmtName, search)
+                || ContainsText(rule.Uid, search)
+                || ContainsText(rule.Name, search)
+                || ContainsText(rule.Source, search)
+                || ContainsText(rule.SourceShort, search)
+                || ContainsText(rule.Destination, search)
+                || ContainsText(rule.DestinationShort, search)
+                || ContainsText(rule.Services, search)
+                || ContainsText(rule.ServicesShort, search)
+                || ContainsText(rule.Action, search)
+                || ContainsText(rule.InstallOn, search)
+                || ContainsText(rule.Compliance, search)
+                || ContainsText(rule.ViolationDetails, search)
+                || ContainsText(rule.ChangeID, search)
+                || ContainsText(rule.AdoITID, search)
+                || ContainsText(rule.Comment, search)
+                || ContainsText(rule.RulebaseId, search)
+                || ContainsText(rule.RulebaseName, search)
+                || ContainsText(rule.Enabled, search);
+        }
+
+        private static bool ContainsText(string? value, string search)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                && value.Contains(search, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
