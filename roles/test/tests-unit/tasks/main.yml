@@ -17,6 +17,16 @@
         mode: "0755"
       become: true
 
+    - name: remove csharp dependency roots
+      file:
+        path: "{{ test_dir }}/roles/{{ item }}"
+        state: absent
+      loop:
+        - lib
+        - middleware
+        - ui
+      become: true
+
     - name: ensure csharp dependency roots exist
       file:
         path: "{{ test_dir }}/roles/{{ item }}"
