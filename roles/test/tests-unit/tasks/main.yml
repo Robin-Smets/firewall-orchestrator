@@ -1,20 +1,58 @@
 - block:
-    - name: ensure test_dir exists
+    - name: ensure test roles dir exists
       file:
-        path: "{{ test_dir }}/csharp"
+        path: "{{ test_dir }}/roles"
         state: directory
         owner: "{{ fworch_user }}"
         group: "{{ fworch_group }}"
         mode: "0755"
       become: true
 
-    - name: sync test files to frontend target
+    - name: ensure csharp test destination exists
+      file:
+        path: "{{ test_dir }}/roles/test/tests-unit/files"
+        state: directory
+        owner: "{{ fworch_user }}"
+        group: "{{ fworch_group }}"
+        mode: "0755"
+      become: true
+
+    - name: ensure csharp dependency roots exist
+      file:
+        path: "{{ test_dir }}/roles/{{ item }}"
+        state: directory
+        owner: "{{ fworch_user }}"
+        group: "{{ fworch_group }}"
+        mode: "0755"
+      loop:
+        - lib
+        - middleware
+        - ui
+      become: true
+
+    - name: sync csharp test project
       synchronize:
-        src: FWO.Test
-        dest: "{{ test_dir }}/csharp"
+        src: "{{ role_path }}/files/FWO.Test"
+        dest: "{{ test_dir }}/roles/test/tests-unit/files"
         rsync_opts:
           - "--chown={{ fworch_user }}:{{ fworch_group }}"
           - "--delete"
+      become: true
+
+    - name: sync csharp test dependencies
+      synchronize:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        rsync_opts:
+          - "--chown={{ fworch_user }}:{{ fworch_group }}"
+          - "--delete"
+      loop:
+        - src: "{{ role_path }}/../../lib/files"
+          dest: "{{ test_dir }}/roles/lib/files"
+        - src: "{{ role_path }}/../../middleware/files"
+          dest: "{{ test_dir }}/roles/middleware/files"
+        - src: "{{ role_path }}/../../ui/files"
+          dest: "{{ test_dir }}/roles/ui/files"
       become: true
 
     - name: run csharp tests
