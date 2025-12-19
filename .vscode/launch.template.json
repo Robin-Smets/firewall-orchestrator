@@ -231,7 +231,7 @@
             "name": "py-generate-tenant-data",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/roles/tests-unit/files/tenant_networks/create_tenant_network_data.py",
+            "program": "${workspaceFolder}/roles/test/tests-unit/files/tenant_networks/create_tenant_network_data.py",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${PYTHONPATH}:${workspaceRoot}"
@@ -449,7 +449,7 @@
             "args": [
                 "test"
             ],
-            "cwd": "${workspaceFolder}/roles/tests-unit/files/FWO.Test",
+            "cwd": "${workspaceFolder}/roles/test/tests-unit/files/FWO.Test",
             "stopAtEntry": false,
             "console": "integratedTerminal"
         },

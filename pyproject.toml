@@ -58,7 +58,7 @@ exclude = [
     "venv",
     "__init__.py",
     "scripts",
-    "roles/tests-integration",
+    "roles/test/tests-integration",
     "roles/importer/files/importer/test"
 ]
 
@@ -81,5 +81,4 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-
 

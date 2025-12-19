@@ -1,3 +1,4 @@
+from typing import Any
 import requests
 import json
 import argparse
@@ -30,7 +31,7 @@ obj_types = ['hosts', 'networks', 'services-tcp']
 base_ip = '10.88.99.'
 
 
-def api_call(ip_addr, port, command, json_payload, sid_a):
+def api_call(ip_addr: str, port: str, command: str, json_payload: Any, sid_a: str) -> dict[str, Any]:
     url = 'https://' + ip_addr + ':' + port + '/web_api/' + command
     if sid_a == '':
         request_headers = {'Content-Type': 'application/json'}
@@ -40,7 +41,7 @@ def api_call(ip_addr, port, command, json_payload, sid_a):
     return r.json()
 
 
-def login(user, password, api_host_a, api_port):
+def login(user: str, password: str, api_host_a: str, api_port: str) -> str:
     payload = {'user': user, 'password': password}
     response = api_call(api_host_a, api_port, 'login', payload, '')
     return response["sid"]

@@ -14,6 +14,7 @@
 # tim@deb10-test:~$ 
 
 
+from typing import Any
 import requests, json, argparse
 
 parser = argparse.ArgumentParser(description='Read configuration from Check Point R8x management via API calls')
@@ -36,7 +37,7 @@ ssl_verification=True
 use_object_dictionary='false'
 
 # show package name "New_Standard_Package_1" --format json
-def api_call(ip_addr, port, command, json_payload, sid):
+def api_call(ip_addr: str, port: str, command: str, json_payload: Any, sid: str) -> dict[str, Any]:
     url = 'https://' + ip_addr + ':' + port + '/web_api/' + api_version + '/' + command
     if sid == '':
         request_headers = {'Content-Type' : 'application/json'}
@@ -45,8 +46,8 @@ def api_call(ip_addr, port, command, json_payload, sid):
     r = requests.post(url, data=json.dumps(json_payload), headers=request_headers, verify=ssl_verification)
     return r.json()
 
-def login(user,password,api_host,api_port):
-    payload = {'user':user, 'password' : password}
+def login(user: str, password: str, api_host: str, api_port: str) -> str:
+    payload = {'user': user, 'password' : password}
     response = api_call(api_host, api_port, 'login', payload, '')
     return response["sid"]
 
