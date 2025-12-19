@@ -1,0 +1,3 @@
+[submodule "external/BlazorTable"]
+	path = external/BlazorTable
+	url = https://github.com/CactuseSecurity/BlazorTable.git
