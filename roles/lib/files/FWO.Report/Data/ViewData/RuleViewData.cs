@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace FWO.Report.Data.ViewData
 {
-    public class RuleViewData : IRuleViewData
+    public class RuleViewData : BlazorTable.Interfaces.IRow<IRuleViewData>, IRuleViewData
     {
         public string MgmtId { get; set; } = "";
         public string MgmtName { get; set; } = "";
@@ -34,6 +34,14 @@ namespace FWO.Report.Data.ViewData
         public bool Show { get; set; } = true;
         public ILogger Logger  {get; set; } = new Logger();
 
+        public bool IsVisibleGroupParent { get; set; } = false;
+        public bool IsExpanded { get; set; } = false;
+        public bool IsExpandable { get; set; } = false;
+        public bool IsSelected { get; set; } = false;
+        public bool IsVisible { get; set; } = false;
+
+        public BlazorTable.Interfaces.ITreeItem<IRuleViewData>? TreeItem { get; set; }  = null;
+
         public RuleViewData()
         {
 
@@ -43,6 +51,7 @@ namespace FWO.Report.Data.ViewData
         {
             DataObject = rule;
             Show = show;
+            IsVisible = show;
 
             MgmtId = SafeCall(rule, "MgmtId", () => rule.MgmtId.ToString());
             MgmtName = SafeCall(rule, "MgmtName", () => managements?.FirstOrDefault(m => m.Id == rule.MgmtId)?.Name ?? "");

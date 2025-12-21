@@ -141,6 +141,7 @@ namespace FWO.Report
             ReportData.RuleViewData = RuleViewData;
             ReportData.RulesFlat = Rules;
             ReportData.ElementsCount = RuleViewData.Count;
+
         }
 
         public override string ExportToJson()

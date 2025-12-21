@@ -1,10 +1,11 @@
+using BlazorTable.Interfaces;
+
 namespace FWO.Basics.Interfaces
 {
-    public interface IRuleViewData
+    public interface IRuleViewData: IRow<IRuleViewData>
     {
         string MgmtId { get; set; }
         string Uid { get; set; }
-        string Name { get; set; }
         string Source { get; set; }
         string Destination { get; set; }
         string Services { get; set; }
