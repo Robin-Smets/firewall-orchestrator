@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace FWO.Report.Data.ViewData
 {
-    public class RuleViewData : BlazorTable.Interfaces.IRow<IRuleViewData>, IRuleViewData
+    public class RuleViewData : IRuleViewData
     {
         public string MgmtId { get; set; } = "";
         public string MgmtName { get; set; } = "";

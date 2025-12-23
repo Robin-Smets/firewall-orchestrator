@@ -2,7 +2,7 @@ using BlazorTable.Interfaces;
 
 namespace FWO.Basics.Interfaces
 {
-    public interface IRuleViewData: IRow<IRuleViewData>
+    public interface IRuleViewData
     {
         string MgmtId { get; set; }
         string Uid { get; set; }

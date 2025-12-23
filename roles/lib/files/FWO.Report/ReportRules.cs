@@ -34,6 +34,7 @@ namespace FWO.Report
         protected bool UseAdditionalFilter = false;
 
         private static Dictionary<(int deviceId, int managementId), Rule[]> _rulesCache = new();
+        public static RuleTreeItem? CurrentRuleTree = null;
 
         public override async Task Generate(int elementsPerFetch, ApiConnection apiConnection, Func<ReportData, Task> callback, CancellationToken ct)
         {
@@ -77,6 +78,7 @@ namespace FWO.Report
             }
 
             TryBuildRuleTree();
+
         }
 
         protected void TryBuildRuleTree()
@@ -94,6 +96,7 @@ namespace FWO.Report
                         if (ruleTreeBuilder?.BuildRulebaseLinkQueue(deviceReport.RulebaseLinks.Where(link => link.Removed == null).ToArray(), managementReport.Rulebases) != null)
                         {
                             allRules = ruleTreeBuilder.BuildRuleTree();
+                            CurrentRuleTree = ruleTreeBuilder.RuleTree;
                             ruleCount += allRules.Count;
                         }
                     }
